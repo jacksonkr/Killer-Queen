@@ -9,4 +9,5 @@ $ npm install paper
 ES6 friendly browser
 
 **notes**
+
 Developed used Sublime text & OSX Chrome 58+ (64bit)
