@@ -5,6 +5,7 @@ Feel free to pitch in!
 **Requirements**
 
 $ npm install paper
+
 ES6 friendly browser
 
 **notes**
