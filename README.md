@@ -5,7 +5,7 @@ Feel free to pitch in!
 **Requirements**
 
 $ npm install paper
-$ es6 friendly browser
+ES6 friendly browser
 
 **notes**
 Developed used Sublime text & OSX Chrome 58+ (64bit)
