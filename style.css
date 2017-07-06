@@ -1,0 +1,52 @@
+body {
+	margin: 0;
+	width:100%;
+	height:100%;
+}
+
+.direction-flip {
+	transform: scaleX(-1);
+}
+
+#game {
+	width:100%;
+	height:100%;
+}
+
+#level {
+	position: relative;
+	width:800px;
+	height:600px;
+	overflow: hidden;
+}
+
+.level-test {
+	background: url("assets/level-test.jpg") no-repeat;
+}
+
+.queen {
+	position: absolute;
+	width: 31px;
+	height: 37px;
+	background: url("assets/queen-stance.png") no-repeat;
+}
+
+.worker {
+	position: absolute;
+	width:20px;
+	height:25px;
+	background: url("assets/worker-stance.png");
+}
+
+.snail {
+	position: absolute;
+	width: 55px;
+	height: 36px;
+	background: url("assets/snail.png");
+}
+
+.ground {
+	position:absolute;
+	/*background: #ff0;*/
+	height: 10px;
+}
