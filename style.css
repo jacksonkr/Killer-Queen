@@ -8,29 +8,78 @@ body {
 	transform: scaleX(-1);
 }
 
-#game {
-	width:100%;
-	height:100%;
+.hide {
+	display:none;
 }
 
-#level {
+#game {
 	position: relative;
 	width:800px;
 	height:600px;
+}
+
+#menu {
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	z-index: 99;
+}
+#menu .teams {
+	position: absolute;
+	display: inline-block;
+	width: 100%;
+}
+#menu .team {
+	display: inline-block;
+	width: 49%;
+}
+#menu ul {
+	margin: 0;
+	padding: 0;
+}
+#menu li:hover {
+	background-color: #eee;
+}
+#menu li {
+	list-style: none;
+	margin: 5px;
+	border-radius: 5px;
+	border: 1px solid #666;
+	width: 50px;
+	height: 50px;
+}
+#menu .background {
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	background: #fff;
+	opacity: 0.8;
+}
+
+#level {
+	position: absolute;
+	width:100%;
+	height:100%;
 	overflow: hidden;
+}
+
+.gold {
+	filter: saturate(2) hue-rotate(180deg);
 }
 
 .level-test {
 	background: url("assets/level-test.jpg") no-repeat;
 }
 
+.toon {
+	z-index:10;
+}
 .queen {
 	position: absolute;
 	width: 31px;
 	height: 37px;
 	background: url("assets/queen-stance.png") no-repeat;
 }
-
 .worker {
 	position: absolute;
 	width:20px;
@@ -43,10 +92,55 @@ body {
 	width: 55px;
 	height: 36px;
 	background: url("assets/snail.png");
+	background-size: 100% 100%;
+}
+.cage {
+	position: absolute;
+	width: 73px;
+	height: 47px;
+	background: url("assets/snail-cage.png");
+	background-size: 100% 100%;
 }
 
 .ground {
 	position:absolute;
 	/*background: #ff0;*/
 	height: 10px;
+}
+
+.egg {
+	position: absolute;
+	width:29px;
+	height:45px;
+	background: url("assets/queen-egg.png") no-repeat;
+	background-size: 100% 100%;
+}
+
+.berry {
+	position: absolute;
+	width:5px;
+	height:5px;
+	background: url("assets/berry.png") no-repeat;
+	background-size: 100% 100%;
+}
+
+.goal {
+	position: absolute;
+	width:13px;
+	height:11px;
+	background: url("assets/berry-goal.png") no-repeat;
+	background-size:100% 100%;
+}
+
+.shrine {
+	position: absolute;
+	width:73px;
+	height:53px;
+	background-size:100% 100%;
+}
+.shrine-speed {
+	background: url("assets/shrine-speed.png");
+}
+.shrine-warrior {
+	background: url("assets/shrine-warrior.png");
 }
