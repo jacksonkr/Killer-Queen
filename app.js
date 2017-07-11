@@ -1,3 +1,9 @@
+/**
+ * VOICEOVER: teams during game, all during intermission
+ * MENU: model KQ arcade??
+ */
+
+
 process.on('uncaughtException', e => console.warn(e.stack));
 process.on('warning', e => console.warn(e.stack));
 
@@ -26,13 +32,20 @@ const KQ = {
 	VIRTUAL_UPDATE:"virtual_update",
 	CHARACTER_SELECT:"character_select",
 	TEAM_BLUE:"teamBlue",
+	TEAM_GOLD:"teamGold",
 	TOON_QUEEN:"queen",
 	TOON_WORKER:"worker",
 	GAME_OVER:"game_over",
+	GAME_COUNTDOWN:"game_countdown",
 	GAME_START:"game_start",
+	GAME_WIN:"game_win",
 	WIN_ECONOMIC:"win_economic",
 	WIN_MILITARY:"win_military",
 	WIN_SNAIL:"win_snail",
+	DIRECTION_RIGHT:1,
+	DIRECTION_LEFT:-1,
+	MENU_UPDATE:"menu_update",
+	USER_READY:"user_ready",
 
 	// server specific
 	KEY_SPACE:" ",
@@ -43,9 +56,80 @@ const KQ = {
 	ATTACK_DURATION: 100,
 	WORKER_SPEED: 2,
 	WARRIOR_SPEED: 3,
-	SHRINE_STANDING_LIMIT: 1 * 1000 // in milliseconds
+	SHRINE_STANDING_LIMIT: 1 * 1000, // in milliseconds
+	SNAIL_SPEED: 0.1,
+	GAME_START_DELAY: 0, // 3 seconds
+	GAME_RESET: "game_reset",
+	BERRY_TOON_OFFSET: {
+		top: 16,
+		left: 7
+	},
+	ELEMENT_OFFSCREEN_OFFSET: {
+		top: -100,
+		left: -100
+	}
 }
 
+class KQEvent {
+	constructor(type, callback, owner, priority) {
+		if(callback === undefined) throw Error("undefined callback!", this);
+		if(priority === undefined) priority = 0;
+		if(owner === undefined) owner = null;
+
+		this.owner = owner;
+		this.type = type;
+		this.callback = callback;
+		this.priority = priority;
+	}
+
+	get priority() {
+		return this._priority;
+	}
+	set priority(v) {
+		this._priority = v;
+		if(KQEvent._listeners) KQEvent.prioritize();
+	}
+
+	static prioritize() {
+		KQEvent._listeners.sort((a, b) => {
+			if(a.priority > b.priority) return -1;
+			if(a.priority < b.priority) return 1;
+			return 0;
+		});
+	}
+
+	static dispatchEvent(type) {
+		KQEvent._listeners.forEach(l => {
+			if(l.type == type) l.callback();
+		});
+	}
+	
+	static addEventListener(l) {
+		if(!KQEvent._listeners) KQEvent._listeners = [];
+
+		KQEvent._listeners.push(l);
+		KQEvent.prioritize();
+	}
+	static hasEventListener(type, owner) {
+		for(var i in KQEvent._listeners) {
+			var l = KQEvent._listeners[i];
+
+			if(l.type == type && l.owner == owner) return l;
+		}
+
+		return null;
+	}
+	static removeEventListener(type) {
+		var list = KQEvent._listeners;
+		for(var i in list) {
+			var l = list[i];
+			if(l.type == type)
+				return KQEvent._listeners.splice(i, 1);
+		}
+
+		return false;
+	}
+}
 class KQCollideable {
 	hitTest(x, y) {
 		if(x >= this.left 
@@ -91,12 +175,18 @@ class KQCollideable {
 class KQElement extends KQCollideable {
 	constructor() {
 		super();
+
+		KQEvent.addEventListener(new KQEvent(KQ.GAME_START, () => {
+			this.mReset();
+		}, this));
 	}
 
 	initCSS(o) {
 		this._initCSS = o;
 		Object.assign(this, o);
 	}
+
+	mReset() {}
 }
 class KQGround extends KQElement {
 	constructor(x, y, w, h) {
@@ -118,16 +208,59 @@ class KQVirtual extends KQElement {
 		this.top = 0; // from css
 		this.width = 0; // from css
 		this.height = 0; // from css
-
-		this.mReset();
 	}
-
-	mReset() {}
 
 	loop() {}
 
 	collission(o) {
-		console.log('collission', this.id, o.id);
+		// console.log("COLLISSION", this.id, o.id);
+	}
+
+	get team() {
+		if(!this.id) return null;
+
+		var str = this.id.toLowerCase().match(/blue|gold/);
+		if(!str || !str.length) return null;
+		str = str[0];
+
+		str = "team" + str.charAt(0).toUpperCase() + str.slice(1);
+
+		return str
+	}
+}
+
+class KQEgg extends KQVirtual {
+	constructor(id) {
+		super(id);
+
+		var e = KQEvent.hasEventListener(KQ.GAME_START, this);
+		e.priority = 1000;
+	}
+
+	static eggsForTeam(team) {
+		var list = [];
+		game.virtual.level.eggs.forEach(egg => {
+			if(!egg.hatched && (egg.team == team)) {
+				list.push(egg);
+			}
+		});
+
+		return list;
+	}
+
+	hatch(queen) {
+		this.hatched = true;
+
+		console.log("HATCH", this.id)
+
+		this.top = KQ.ELEMENT_OFFSCREEN_OFFSET.top;
+		this.left = KQ.ELEMENT_OFFSCREEN_OFFSET.left;
+	}
+
+	mReset() {
+		super.mReset();
+
+		this.hatched = false;
 	}
 }
 
@@ -146,7 +279,7 @@ class KQBerry extends KQVirtual {
 		}
 
 		if(o instanceof KQGoal) {
-			this.toon.lostBerry();
+			this.toon.loseBerry();
 			this.toon = null;
 
 			this.goal = o;
@@ -155,18 +288,24 @@ class KQBerry extends KQVirtual {
 		}
 	}
 
+	/**
+	 * only triggered by a powerup
+	 * hides the berry off screen
+	 */
 	used() {
-		// for a powerup
-		this.top = -100;
-		this.left = -100;
+		this.toon = null;
+		this.top = KQ.ELEMENT_OFFSCREEN_OFFSET.top;
+		this.left = KQ.ELEMENT_OFFSCREEN_OFFSET.left;
 	}
 
 	goalCheck() {
-		var self = this;
 		game.virtual.level.goals.forEach(goal => {
-			if(!goal.berry && goal.hitTestBounds(self.boundingBox)) {
-				goal.collission(self);
-				self.collission(goal);
+			if(!goal.berry 
+			&& this.toon
+			&& this.toon.team == goal.team
+			&& goal.hitTestBounds(this.boundingBox)) {
+				goal.collission(this);
+				this.collission(goal);
 			}
 		});
 	}
@@ -176,15 +315,85 @@ class KQBerry extends KQVirtual {
 
 		// be carried by the toon
 		if(this.toon) {
-			this.top = this.toon.top - 5;
-			this.left = this.toon.left + this.toon.width/2 - this.width/2;
+			this.top = this.toon.top + KQ.BERRY_TOON_OFFSET.top;
+			this.left = this.toon.left + this.toon.width/2 - this.width/2 - KQ.BERRY_TOON_OFFSET.left * this.toon.direction;
 
 			this.goalCheck();
 		}
 	}
+
+	static getBerryByToon(toon) {
+		var berries = game.virtual.level.berries;
+		for(var i in berries) {
+			var berry = berries[i];
+			if(berry.toon == toon) return berry;
+		}
+
+		return false;
+	}
 }
 
 class KQSnail extends KQVirtual {
+	constructor(id) {
+		super(id);
+
+		this.speed = KQ.SNAIL_SPEED;
+	}
+
+	collission(o) {
+		if(o instanceof KQWorker) {
+			this.toon = o;
+		}
+
+		if(o instanceof KQSnailCage) {
+			game.win(KQ.WIN_SNAIL, this.toon.team);
+		}
+	}
+
+	loop() {
+		super.loop();
+
+		if(this.toon) {
+			// check collission against enemy toon (eat them)
+			var keys = Object.keys(game.virtual.level.toons);
+			keys.forEach(key => {
+				var toon = game.virtual.level.toons[key];
+				if(toon != this.toon 
+				&& this.hitTestBounds(toon.boundingBox)) {
+					this.collission(toon);
+					toon.collission(this);
+				}
+			});
+
+			// check collission against goal
+			game.virtual.level.snailCages.forEach(cage => {
+				if(this.hitTestBounds(cage.boundingBox)) {
+					this.collission(cage);
+				}
+			});
+		}
+	}
+
+	mReset() {
+		this.toon = null;
+	}
+
+	goLeft() {
+		if(this.toon && this.toon.team == KQ.TEAM_BLUE) {
+			this.direction = KQ.DIRECTION_LEFT;
+			this.left += this.speed * this.direction;
+		}
+	}
+
+	goRight() {
+		if(this.toon && this.toon.team == KQ.TEAM_GOLD) {
+			this.direction = KQ.DIRECTION_RIGHT;
+			this.left += this.speed * this.direction;
+		}
+	}
+}
+
+class KQSnailCage extends KQVirtual {
 	constructor(id) {
 		super(id);
 	}
@@ -199,16 +408,19 @@ class KQShrine extends KQVirtual {
 		super.collission(o);
 
 		if(o instanceof KQWorker) {
-			if(o.berry && o.standingTime > KQ.SHRINE_STANDING_LIMIT)
+			if(o.berry && o.standingTime > KQ.SHRINE_STANDING_LIMIT) 
 				this.powerUp(o);
 		}
 	}
 
 	powerUp(o) {
-		o.berry.used();
-		o.loseBerry();
+		var berry = KQBerry.getBerryByToon(o);
+		if(berry) {
+			berry.used();
+			o.loseBerry();
 
-		console.log('POWER UP', this.id, o.id)
+			console.log('POWER UP', this.id, o.id);
+		}
 	}
 }
 class KQShrineSpeed extends KQShrine {
@@ -217,6 +429,8 @@ class KQShrineSpeed extends KQShrine {
 	}
 
 	powerUp(o) {
+		super.powerUp(o);
+
 		o.gainSpeed();
 	}
 }
@@ -226,6 +440,8 @@ class KQShrineWarrior extends KQShrine {
 	}
 
 	powerUp(o) {
+		super.powerUp(o);
+
 		o.gainWarrior();
 	}
 }
@@ -233,9 +449,6 @@ class KQShrineWarrior extends KQShrine {
 class KQGoal extends KQVirtual {
 	constructor(id) {
 		super(id);
-
-		this.team = id.match(/goal-(\w{4})-\d+/)[1];
-		this.team = "team" + this.team.charAt(0).toUpperCase() + this.team.slice(1);
 
 		KQGoal.goals.push(this);
 	}
@@ -264,7 +477,6 @@ class KQGoal extends KQVirtual {
 		});
 		
 		if(win) {
-			console.log("GAME OVER", KQ.WIN_ECONOMIC, team);
 			game.win(KQ.WIN_ECONOMIC, team);
 		}
 	}
@@ -274,29 +486,94 @@ class KQToon extends KQVirtual {
 	constructor(id) {
 		super(id);
 
-		this.team = id.match(/(^\w{8})/)[0];
+		this.reset_delay = 3 * 1000;
+	}
+
+	/**
+	 * check if this toon is facing another toon 
+	 */
+	facing(enemy) {
+		if(this.direction < 0 && enemy.left < this.left) return true;
+		if(this.direction > 0 && enemy.left > this.left) return true;
+		
+		return false;
+	}
+
+	aiCheck() {
+		// human vs ai check
+		this.isAIPlayer = true;
+		game.users.some(user => {
+			if(user.toonId == this.id) 
+				this.isAIPlayer = false;
+		});
 	}
 
 	/**
 	 * when the character is born / is reborn
 	 */
 	mReset() {
+		console.log("RESET", this.id);
+
+		this.aiCheck();
+
+		this.invulnerable = true;
+		setTimeout(() => {
+			this.invulnerable = false;
+		}, this.reset_delay);
 		super.mReset();
 
 		if(this._initCSS) this.initCSS(this._initCSS); // starts back at html location
 
 		this.accel = 0;
 		this.speed = KQ.WORKER_SPEED;
-		this.direction = 1;
+		this.direction = KQ.DIRECTION_RIGHT;
 	}
 
-	attack() {}
+	attacked() {
+		if(this.invulnerable) return;
+
+		console.log("ATTACKED", this.id);
+		this.mReset();
+	}
+
+	attack() {
+		this.attacking = Date.now();
+		setTimeout(() => {
+			this.attacking = null;
+		}, KQ.ATTACK_DURATION);
+	}
 
 	loop() {
 		// runs every frame
 		this.groundCheck();
 
 		this.roundNumbers();
+
+		if(this.isAIPlayer) this.AILoop();
+	}
+
+	AILoop() {
+		// var dirFunc;
+		// var dirTimer;
+		// var tDir = () => {
+		// 	dirTimer = setTimeout(() => {
+		// 		dirFunc = this.goRight;
+		// 		if(Math.random() > 0.5) dirFunc = this.goLeft;
+		// 		dirTimer = null;
+		// 	}, Math.random() * 10000 + 1000);
+		// }
+		// if(!dirTimer) tDir();
+		// if(dirFunc) this.goRight();
+
+		// var jumpTimer;
+		// var tJump = () => {
+		// 	jumpTimer = setTimeout(() => {
+		// 		this.jump();
+		// 		tJump();
+		// 		jumpTimer = null;
+		// 	}, Math.random() * 1000 + 1000);
+		// }
+		// if(!jumpTimer) tJump();
 	}
 
 	roundNumbers() {
@@ -320,7 +597,7 @@ class KQToon extends KQVirtual {
 		});
 	}
 
-	lostBerry() {
+	loseBerry() {
 		this.berry = null;
 	};
 
@@ -331,7 +608,6 @@ class KQToon extends KQVirtual {
 	 */
 	groundCheck() {
 		// check toons against ground items
-		var self = this;
 		this.grounded = false;
 		game.virtual.level.ground.forEach(gr => {
 
@@ -339,30 +615,30 @@ class KQToon extends KQVirtual {
 			// saves on processing ??
 
 			// grounded check (check right below toon)
-			if(gr.hitTest(self.left + self.width/2, self.top + self.height)) {
-				self.grounded = true;
+			if(gr.hitTest(this.left + this.width/2, this.top + this.height)) {
+				this.grounded = true;
 			}
 			
 			// bottom center (ground)
-			while(gr.hitTest(self.left + self.width/2, self.top + self.height)) {
-				self.top -= 0.1;
-				self.accel = 0;
+			while(gr.hitTest(this.left + this.width/2, this.top + this.height)) {
+				this.top -= 0.1;
+				this.accel = 0;
 			}
 
 			// top center (ceiling)
-			while(gr.hitTest(self.left + self.width/2, self.top)) {
-				self.top += 0.1;
-				self.accel = 0;
+			while(gr.hitTest(this.left + this.width/2, this.top)) {
+				this.top += 0.1;
+				this.accel = 0;
 			}
 
 			// right middle (wall)
-			while(gr.hitTest(self.left + self.width, self.top + self.height/2)) {
-				self.left -= 0.1;
+			while(gr.hitTest(this.left + this.width, this.top + this.height/2)) {
+				this.left -= 0.1;
 			}
 
 			// left middle (wall)
-			while(gr.hitTest(self.left, self.top + self.height/2)) {
-				self.left += 0.1;
+			while(gr.hitTest(this.left, this.top + this.height/2)) {
+				this.left += 0.1;
 			}
 		});
 	}
@@ -371,6 +647,20 @@ class KQToon extends KQVirtual {
 		this.grounded = false;
 		this.accel = -5;
 	}
+
+	goRight() {
+		this.left += this.speed;
+		this.direction = KQ.DIRECTION_RIGHT;
+	}
+
+	goLeft() {
+		this.left -= this.speed;
+		this.direction = KQ.DIRECTION_LEFT;
+	}
+
+	goDown() {
+		this.top += this.speed
+	}
 }
 class KQWorker extends KQToon {
 	constructor(id) {
@@ -378,7 +668,7 @@ class KQWorker extends KQToon {
 	}
 
 	jump() {
-		if(this.grounded) {
+		if(this.grounded || this.warrior) {
 			super.jump();
 		}
 	}
@@ -391,6 +681,35 @@ class KQWorker extends KQToon {
 		this.toonCheck();
 		this.shrineCheck();
 		this.standingCheck();
+	}
+
+	attacked() {
+		super.attacked();
+	}
+
+	collission(o) {
+		super.collission(o);
+
+		if(o instanceof KQBerry) {
+			// this.berry = o; // wtf crash
+			this.berry = true;
+		}
+
+		if(o instanceof KQSnail) {
+			this.snail = true;
+		}
+
+		if(o instanceof KQWorker) {
+			if(o.warrior && o.attacking && o.facing(this)) this.attacked();
+		}
+
+		if(o instanceof KQQueen) {
+			if(o.attacking && o.facing(this)) this.attacked();
+		}
+
+		if (o instanceof KQShrine) {
+
+		}
 	}
 
 	/**
@@ -411,25 +730,13 @@ class KQWorker extends KQToon {
 	}
 
 	shrineCheck() {
-		game.virtual.level.shrines.forEach(shrine => {
-
-		});
-	}
-
-	collission(o) {
-		super.collission(o);
-
-		if(o instanceof KQBerry) {
-			// this.berry = o; // wtf crash
-			this.berry = true;
-		}
-
-		if(o instanceof KQSnail) {
-
-		}
-
-		if(o instanceof KQToon) {
-			// bump
+		if(this.berry) { // only check if you have a berry
+			game.virtual.level.shrines.forEach(shrine => {
+				if(shrine.hitTestBounds(this.boundingBox)) {
+					shrine.collission(this);
+					this.collission(shrine);
+				}
+			});
 		}
 	}
 
@@ -441,8 +748,8 @@ class KQWorker extends KQToon {
 		this.warrior = true;
 	}
 
-	attacked() {
-		this.mReset();
+	attack() {
+		if(this.warrior) super.attack();
 	}
 
 	mReset() {
@@ -451,44 +758,95 @@ class KQWorker extends KQToon {
 		this.standingStartTime = 0;
 		this.standingTime = 0;
 		this.warrior = false;
+		this.berry = null;
+		this.snail = null;
 	}
 
 	berryCheck() {
-		if(!this.berry) { // make sure toon doesn't already have a berry
-			var self = this;
-			
-			var arr = game.virtual.level.berries;
-			for(var i in arr) {
-				var berry = arr[i];
+		if(!this.berry && !this.warrior) { // make sure toon doesn't already have a berry
+			game.virtual.level.berries.forEach(berry => {
 
 				// todo: check for berry distance from user before processing
 
-				if(!berry.goal && self.hitTestBounds(berry.boundingBox)) {
-					self.collission(berry);
-					berry.collission(self);
+				if(!berry.goal && this.hitTestBounds(berry.boundingBox)) {
+					this.collission(berry);
+					berry.collission(this);
 					return;
 				}
-			}
+			});
 		}
 	}
 
 	snailCheck() {
+		if(!this.warrior) {
+			if(!this.snail) {
+				var snail = game.virtual.level.snail;
+				if(snail.hitTestBounds(this.boundingBox)) {
+					snail.collission(this);
+					this.collission(snail);
+				}
+			} else {
+				// show riding the snail
+				this.top = game.virtual.level.snail.top;
+				this.left = game.virtual.level.snail.left;
+			}
+		}
+	}
 
+	goLeft() {
+		if(this.snail) game.virtual.level.snail.goLeft();
+		else super.goLeft();
+	}
+	goRight() {
+		if(this.snail) game.virtual.level.snail.goRight();
+		else super.goRight();
+	}
+	goDown() {
+		if(this.warrior) super.goDown();
 	}
 }
 class KQQueen extends KQToon {
 	constructor(id) {
 		super(id);
 
+		this.lives = 3;
 		this.speed = 3;
 	}
 
+	attacked(attacker) {
+		if(this.invulnerable) return;
+
+		if(KQEgg.eggsForTeam(this.team).length) {
+			super.attacked();
+		} else {
+			game.win(KQ.WIN_MILITARY, attacker.team);
+		}
+	}
+
 	attack() {
-		this.attack = Date.now();
-		var self = this;
-		setTimeout(() => {
-			self.attack = null;
-		}, KQ.ATTACK_DURATION);
+		super.attack();
+
+		// KQEgg.eggsForTeam(this.team).forEach(egg => {
+		// 	console.log(egg.id, egg.hatched)
+		// });
+
+	}
+
+	mReset() {
+		super.mReset();
+
+		// respawn at egg
+		var eggs = KQEgg.eggsForTeam(this.team);
+		var egg = eggs[0];
+		console.log("RESPAWN AT EGG", egg.id, egg.hatched);
+
+		if(egg) {
+			this.top = egg.top;
+			this.left = egg.left;
+
+			egg.hatch(this);
+		}
+
 	}
 
 	loop() {
@@ -504,14 +862,14 @@ class KQQueen extends KQToon {
 		super.collission(o);
 
 		if(o instanceof KQQueen) {
-			KQQueen.judge(this, o, winner => {
-				if(winner) game.win(KQ.WIN_MILITARY, winner.team);
-			});
+			if(o.attacking && o.facing(this) && o.top < this.top)
+				this.attacked(o);
 		}
 	}
 }
 
 var game = {
+	timer: null, // the id for the game timer
 	props: {
 		gravity_max: 4,
 		gravity_rate: 0.2,
@@ -521,7 +879,10 @@ var game = {
 		level: {
 			width: 800,
 			height: 600,
+			eggs:[],
 			toons:{},
+			snail: null,
+			snailCages: [],
 			shrines:[],
 			goals:[],
 			berries:[],
@@ -529,9 +890,118 @@ var game = {
 		}
 	},
 	win:(type,team) => {
-		io.sockets.emit(KQ.GAME_OVER, {type:type, team:team});
+		io.sockets.emit(KQ.GAME_WIN, {type:type, team:team});
+		KQEvent.dispatchEvent(KQ.GAME_OVER);
+		clearInterval(game.timer);
 	}
 };
+game.loop = () => {
+	KQEvent.dispatchEvent(KQ.LOOP);
+
+	game.users.forEach(user => {
+		try {
+			if(!user.toonId) return; // user isn't ready yet
+
+			var looped = []; // calls loop on KQVirtual objects
+			looped.push.apply(looped, game.virtual.level.berries);
+			looped.push.apply(looped, game.virtual.level.goals);
+			looped.push.apply(looped, [game.virtual.level.snail]);
+			looped.push.apply(looped, Object.values(game.virtual.level.toons));
+
+			looped.forEach(o => {
+				if(o.loop) o.loop.apply(o);
+			});
+
+			var toon = game.virtual.level.toons[user.toonId];
+
+			user.keys.forEach(key => {
+				switch(true) {
+					case key == KQ.KEY_SPACE:
+						toon.attack();
+						break;
+					case key == KQ.KEY_UP:
+						toon.jump();
+						break;
+					case key == KQ.KEY_DOWN:
+						toon.goDown();
+						break;
+					case key == KQ.KEY_LEFT:
+						toon.goLeft();
+						break;
+					case key == KQ.KEY_RIGHT:
+						toon.goRight();
+						break;
+					case key == "r":
+						toon.mReset();
+						break;
+				}
+			});
+
+			// check off level (repeat)
+			if(toon.left + toon.width/2 < 0) toon.left = game.virtual.level.width - toon.width/2;
+			if(toon.left + toon.width/2 > game.virtual.level.width) toon.left = 0;
+
+			// disable space key if it's listed
+			var xoss = [KQ.KEY_UP, KQ.KEY_SPACE];
+			xoss.forEach(k => {
+				var xos = user.keys.indexOf(k);
+				if(xos >= 0) user.keys.splice(xos, 1);
+			});
+
+		} catch(e) { 
+			console.warn(e);
+		};
+	});
+
+	// loop on all
+	// todo: move this to the KQ.LOOP event for the KQVirtual class
+	var keys = Object.keys(game.virtual.level.toons);
+	keys.forEach(key => {
+		var toon = game.virtual.level.toons[key];
+		
+		// implement gravity
+		toon.accel += game.props.gravity_rate;
+		if(toon.accel > game.props.gravity_max) toon.accel = game.props.gravity_max;
+		toon.top += toon.accel;
+	});
+
+	io.sockets.emit(KQ.VIRTUAL_UPDATE, game.virtual);
+}
+KQEvent.addEventListener(new KQEvent(KQ.GAME_START, () => {
+	game.gameInProgress = true;
+	game.timer = setInterval(game.loop, 1000 / 60);
+	io.sockets.emit(KQ.GAME_START, null);
+}));
+KQEvent.addEventListener(new KQEvent(KQ.GAME_OVER, () => {
+	KQEvent.dispatchEvent(KQ.GAME_RESET);
+	io.sockets.emit(KQ.GAME_OVER);
+}))
+KQEvent.addEventListener(new KQEvent(KQ.GAME_COUNTDOWN, () => {
+	game.countdownTimer = setTimeout(() => {
+		var diff = Date.now() - game.countDownStartTime;
+		diff = Math.round(diff / 1000);
+
+		io.sockets.emit(KQ.GAME_COUNTDOWN, {time:KQ.GAME_START_DELAY - diff});
+
+		if(diff >= KQ.GAME_START_DELAY) {
+			KQEvent.dispatchEvent(KQ.GAME_START);
+		} else {
+			KQEvent.dispatchEvent(KQ.GAME_COUNTDOWN);
+		}
+	}, 1000);
+}));
+KQEvent.addEventListener(new KQEvent(KQ.GAME_RESET, () => {
+	console.log("GAME RESET !!");
+	game.gameInProgress = false;
+	clearInterval(game.timer);
+	game.timer = null;
+}));
+KQEvent.addEventListener(new KQEvent(KQ.MENU_UPDATE, () => {
+	io.sockets.emit(KQ.MENU_UPDATE, {
+		users: game.users,
+		gameInProgress: game.gameInProgress,
+	});
+}))
 
 // parse index.html for level data
 const cheerio = require('cheerio');
@@ -548,11 +1018,17 @@ fs.readFile('index.html', 'utf8', (err,data) => {
 		// add json version to css rules
 		vcss.stylesheet.rules.forEach(rule => {
 			rule.json = {};
-			rule.declarations.forEach(dec => {
-				// console.log(dec)
-				if(dec.property)
-					rule.json[dec.property] = dec.value
-			});
+			if(rule.declarations) {
+				rule.declarations.forEach(dec => {
+					try {
+						if(dec.property) 
+							rule.json[dec.property] = dec.value;
+					} catch(e) {
+						// css parser DOES NOT like @keyframes
+						// console.log(e);
+					}
+				});
+			}
 		});
 
 		// genStyleBySelectors(['.queen', 'blue']).json)
@@ -562,7 +1038,7 @@ fs.readFile('index.html', 'utf8', (err,data) => {
 			var ret = {};
 			vcss.stylesheet.rules.forEach(rule => { // class rules
 				selectors.forEach((sel) => { // class names
-					if(rule.selectors[0].indexOf(sel) >= 0) { // class properties
+					if(rule.selectors && rule.selectors[0].indexOf(sel) >= 0) { // class properties
 						Object.assign(ret, rule);
 					}
 				});
@@ -616,11 +1092,20 @@ fs.readFile('index.html', 'utf8', (err,data) => {
 					game.virtual.level.goals.push(vobj);
 					break;
 				case id == 'snail':
-
+					vobj = new KQSnail(id);
+					game.virtual.level.snail = vobj;
+					break;
+				case id.indexOf('cage') >= 0:
+					vobj = new KQSnailCage(id);
+					game.virtual.level.snailCages.push(vobj);
 					break;
 				case id == 'ground':
 					vobj = new KQGround();
 					game.virtual.level.ground.push(vobj);
+					break;
+				case id.indexOf('egg') == 0:
+					vobj = new KQEgg(id);
+					game.virtual.level.eggs.push(vobj);
 					break;
 			}
 
@@ -657,70 +1142,6 @@ fs.readFile('index.html', 'utf8', (err,data) => {
 	});
 });
 
-
-const gameTimer = setInterval(() => {
-	game.users.forEach(user => {
-		try {
-			if(!user.toonId) return; // user isn't ready yet
-
-			var looped = [];
-			looped.push.apply(looped, game.virtual.level.berries);
-			looped.push.apply(looped, game.virtual.level.goals);
-			// looped.push.apply(looped, [game.virtual.level.snail]);
-			looped.push.apply(looped, Object.values(game.virtual.level.toons));
-
-			looped.forEach(o => {
-				if(o.loop) o.loop.apply(o);
-			});
-
-			var toon = game.virtual.level.toons[user.toonId];
-
-			user.keys.forEach(key => {
-				switch(true) {
-					case key == KQ.KEY_SPACE:
-						toon.attack();
-						break;
-					case key == KQ.KEY_UP:
-						toon.jump();
-						break;
-					case key == KQ.KEY_DOWN:
-						toon.top += toon.speed;
-						break;
-					case key == KQ.KEY_LEFT:
-						toon.left -= toon.speed;
-						toon.direction = -1;
-						break;
-					case key == KQ.KEY_RIGHT:
-						toon.left += toon.speed;
-						toon.direction = 1;
-						break;
-				}
-			});
-
-			// check off level (repeat)
-			if(toon.left + toon.width/2 < 0) toon.left = game.virtual.level.width - toon.width/2;
-			if(toon.left + toon.width/2 > game.virtual.level.width) toon.left = 0;
-
-			// disable space key if it's listed
-			var xoss = [KQ.KEY_UP, KQ.KEY_SPACE];
-			xoss.forEach(k => {
-				var xos = user.keys.indexOf(k);
-				if(xos >= 0) user.keys.splice(xos, 1);
-			});
-
-			// implement gravity
-			toon.accel += game.props.gravity_rate;
-			if(toon.accel > game.props.gravity_max) toon.accel = game.props.gravity_max;
-			toon.top += toon.accel;
-
-		} catch(e) { 
-			console.warn(e);
-		};
-	});
-
-	io.sockets.emit(KQ.VIRTUAL_UPDATE, game.virtual);
-}, 1000 / 60); // 60 frames per second
-
 io.sockets.on("connection", socket => {
 	var user = {};
 	user.id = Date.now();
@@ -729,21 +1150,7 @@ io.sockets.on("connection", socket => {
 	game.users.push(user);
 	console.log('connected', user);
 
-	// socket.emit(COMMAND.ME, user);
-	// socket.broadcast.emit(COMMAND.HELLO, user); // let everyone else know I connected
-
-// 	/**
-// 	 * User user
-// 	 * obj {coords:[x, y], drawing:boolean}
-// 	 */
-// 	socket.on(COMMAND.MOVE, function(obj) {
-// 		obj.user = socket.user;
-// 		draw_queue[COMMAND.MOVE] = obj;
-// 	});
-// 	socket.on(COMMAND.MOUSEDOWN, function(obj) {
-// 		obj.user = socket.user;
-// 		socket.broadcast.emit(COMMAND.MOUSEDOWN, obj);
-// 	})
+	KQEvent.dispatchEvent(KQ.MENU_UPDATE);
 
 	socket.on(KQ.CHARACTER_SELECT, data => {
 		// make sure character isn't already taken
@@ -756,15 +1163,27 @@ io.sockets.on("connection", socket => {
 		});
 		if(taken) return;
 
+		user.ready = false;
 		user.toonId = data.toonId;
-		socket.emit(KQ.CHARACTER_SELECT, null);
 
-		// var ready = true;
-		// if(game.users.forEach(u => {
-		// 	if(!u.toon) ready = false;
-		// }));
-		// if(ready) socket.emit(KQ.GAME_START, null);
+		KQEvent.dispatchEvent(KQ.MENU_UPDATE);
 	});
+
+	socket.on(KQ.USER_READY, data => {
+		user.ready = data.ready;
+
+		if(user.ready) {
+			var gameReady = true;
+			if(game.users.forEach(u => {
+				if(!u.toonId || !u.ready) gameReady = false;
+			}));
+
+			if(gameReady) {
+				game.countDownStartTime = Date.now();
+				KQEvent.dispatchEvent(KQ.GAME_COUNTDOWN);
+			}
+		}
+	})
 
 	socket.on(KQ.KEY_UPDATE, data => {
 		user.keys = data;
@@ -774,7 +1193,15 @@ io.sockets.on("connection", socket => {
 		// socket.broadcast.emit(COMMAND.GOODBYE, user);
 		// clearInterval(loop_id);
 		user.toonId = undefined;
-		game.users = game.users.filter(o => o.id == user.id);
+		for(var i in game.users) {
+			var o = game.users[i];
+			if(o.id == user.id) game.users.splice(i, 1);
+		};
+
+		if(game.users.length)
+			KQEvent.dispatchEvent(KQ.MENU_UPDATE);
+		else 
+			KQEvent.dispatchEvent(KQ.GAME_RESET);
 	});
 });
 

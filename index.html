@@ -7,54 +7,56 @@
 
 <body>
 	<div id="game">
-		<div id="menu">
+		<div id="menu" class="hide">
 			<div class="background"></div>
 			<div class="teams">
-				<div class="team">
-					<p>Team Blue</p>
+				<div class="team blue">
 					<ul>
-						<a href="#" onclick="characterSelected('teamBlue-queen')"><li>Queen</li></a>
-						<a href="#" onclick="characterSelected('teamBlue-worker0')"><li>Worker</li></a>
-						<a href="#" onclick="characterSelected('teamBlue-worker1')"><li>Worker</li></a>
-						<a href="#" onclick="characterSelected('teamBlue-worker2')"><li>Worker</li></a>
-						<a href="#" onclick="characterSelected('teamBlue-worker3')"><li>Worker</li></a>
+						<li id="menu-teamBlue-queen" onclick="characterSelected(this, 'teamBlue-queen')">Q</li>
+						<li id="menu-teamBlue-worker0" onclick="characterSelected(this, 'teamBlue-worker0')">W</li>
+						<li id="menu-teamBlue-worker1" onclick="characterSelected(this, 'teamBlue-worker1')">W</li>
+						<li id="menu-teamBlue-worker2" onclick="characterSelected(this, 'teamBlue-worker2')">W</li>
+						<li id="menu-teamBlue-worker3" onclick="characterSelected(this, 'teamBlue-worker3')">W</li>
 					</ul>
 				</div>
-				<div class="team">
-					<p>Team Gold</p>
+				<div class="team gold">
 					<ul>
-						<a href="#" onclick="characterSelected('teamGold-queen')"><li>Queen</li></a>
-						<a href="#" onclick="characterSelected('teamGold-worker0')"><li>Worker</li></a>
-						<a href="#" onclick="characterSelected('teamGold-worker1')"><li>Worker</li></a>
-						<a href="#" onclick="characterSelected('teamGold-worker2')"><li>Worker</li></a>
-						<a href="#" onclick="characterSelected('teamGold-worker3')"><li>Worker</li></a>
+						<li id="menu-teamGold-queen"   onclick="characterSelected(this, 'teamGold-queen')">Q</li>
+						<li id="menu-teamGold-worker0" onclick="characterSelected(this, 'teamGold-worker0')">W</li>
+						<li id="menu-teamGold-worker1" onclick="characterSelected(this, 'teamGold-worker1')">W</li>
+						<li id="menu-teamGold-worker2" onclick="characterSelected(this, 'teamGold-worker2')">W</li>
+						<li id="menu-teamGold-worker3" onclick="characterSelected(this, 'teamGold-worker3')">W</li>
 					</ul>
 				</div>
+				<button id="player-ready" onclick="playerReady()" disabled>Ready</button>
+			</div>
+			<div id="countdown" class="hide">
+				#
 			</div>
 		</div>
 		<div id="level" class="level-test">
 			<!-- toons blue -->
-			<div id="teamBlue-queen" class="queen blue toon"    style="left:323px;top:50px;"></div>
-			<div id="teamBlue-worker0" class="worker blue toon" style="left:323px;top:50px;"></div>
-			<div id="teamBlue-worker1" class="worker blue toon" style="left:323px;top:50px;"></div>
-			<div id="teamBlue-worker2" class="worker blue toon" style="left:323px;top:50px;"></div>
-			<div id="teamBlue-worker3" class="worker blue toon" style="left:323px;top:50px;"></div>
+			<div id="teamBlue-queen" class="queen blue toon"    style="left:90px;top:60px;"></div>
+			<div id="teamBlue-worker0" class="worker blue toon" style="left:303px;top:66px;"></div>
+			<div id="teamBlue-worker1" class="worker blue toon" style="left:343px;top:66px;"></div>
+			<div id="teamBlue-worker2" class="worker blue toon" style="left:236px;top:166px;"></div>
+			<div id="teamBlue-worker3" class="worker blue toon" style="left:21px;top:166px;"></div>
 			<!-- toons gold -->
-			<div id="teamGold-queen" class="queen gold toon"    style="left:459px;top:50px;"></div>
-			<div id="teamGold-worker0" class="worker gold toon" style="left:459px;top:50px;"></div>
-			<div id="teamGold-worker1" class="worker gold toon" style="left:459px;top:50px;"></div>
-			<div id="teamGold-worker2" class="worker gold toon" style="left:459px;top:50px;"></div>
-			<div id="teamGold-worker3" class="worker gold toon" style="left:459px;top:50px;"></div>
+			<div id="teamGold-queen" class="queen gold toon"    style="left:692px;top:60px;"></div>
+			<div id="teamGold-worker0" class="worker gold toon" style="left:439px;top:66px;"></div>
+			<div id="teamGold-worker1" class="worker gold toon" style="left:479px;top:66px;"></div>
+			<div id="teamGold-worker2" class="worker gold toon" style="left:547px;top:166px;"></div>
+			<div id="teamGold-worker3" class="worker gold toon" style="left:763px;top:166px;"></div>
 			
 
 			<!-- eggs blue -->
-			<div id="egg0" class="egg" style="left:51px;top:55px"></div>
-			<div id="egg1" class="egg" style="left:86px;top:55px"></div>
-			<div id="egg2" class="egg" style="left:121px;top:55px"></div>
+			<div id="egg0-blue" class="egg" style="left:51px;top:55px"></div>
+			<div id="egg1-blue" class="egg" style="left:86px;top:55px"></div>
+			<div id="egg2-blue" class="egg" style="left:121px;top:55px"></div>
 			<!-- eggs gold -->
-			<div id="egg0" class="egg" style="left:653px;top:55px"></div>
-			<div id="egg1" class="egg" style="left:688px;top:55px"></div>
-			<div id="egg2" class="egg" style="left:723px;top:55px"></div>
+			<div id="egg0-gold" class="egg" style="left:653px;top:55px"></div>
+			<div id="egg1-gold" class="egg" style="left:688px;top:55px"></div>
+			<div id="egg2-gold" class="egg" style="left:723px;top:55px"></div>
 
 
 			<!-- snail -->
