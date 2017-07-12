@@ -2,13 +2,31 @@ This is just for fun. Repurposing the 10 player Killer Queen arcade with HTML, C
 
 **Feel free to pitch in!**
 
-<h1>Requirements</h1>
+<h1>Simple Setup</h1>
 
-$ npm install node<br />
-$ npm install socketio<br />
+<code>
+$ git clone https://github.com/jacksonkr/Killer-Queen
+$ cd Killer-Queen
+$ git checkout dev; # OPTIONAL! Only use this if you know what it means
+$ npm install
+$ node app.js
+</code>
+
+go to <a href="http://localhost:3000">http://localhost:3000</a>
+
+
+<h1>Package</h1>
+
+node<br />
+socketio - this game is server based and multiplayer<br />
+cheerio - parses the html from the index.html for game data<br />
+css - parses the css to get info on game items (width/height), this was done quick<br />
 
 <h1>notes</h1>
 
-I'm personally Developing with Sublime text 2 and OSX Chrome 58+ (64bit)
+- I played this game at a bar and thought it would would be a fun node/socketio project. I am doing this FOR FUN!
 
-This project was bootstrapped with [Create React App](https://github.com/facebookincubator/create-react-app)
+- I personally develop with Sublime text 2 and OSX Chrome 58+ (64bit)
+
+- cheerio is used to parse the HTML
+- css is used to parse the CSS (although not so good)
