@@ -3,11 +3,12 @@
   "version": "1.0.0",
   "description": "A cover of the Killer Queen 10 player indie arcade game.",
   "main": "index.js",
-  "dependencies": 
+  "dependencies": {
     "cheerio": "^1.0.0-rc.2",
     "css": "^2.2.1",
+    "node": "0.0.0",
     "socketio": "^1.0.0"
-  ,
+  },
   "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
