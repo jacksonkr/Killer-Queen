@@ -52,14 +52,9 @@ window.onload = function() {
   });
 
   socket.on(KQ.VIRTUAL_UPDATE, data => {
-  	var updates = [];
-  	updates.push.apply(updates, Object.values(data.level.toons)); // converting object to array
-  	updates.push.apply(updates, data.level.berries);
-  	updates.push.apply(updates, [data.level.snail]);
-  	updates.push.apply(updates, data.level.eggs);
-
+console.log(data[0])
   	// try {
-  		updates.forEach(o => {
+  		data.forEach(o => {
 		  	var ele = document.getElementById(o.id);
 		  	if(ele) {
 					ele.style.left = o.left;
@@ -79,7 +74,7 @@ window.onload = function() {
 				}
   		});
 		// } catch(e) {
-		// 	// it's time to shut it down
+		// 	// it's time to shut it down (potential hack?)
 		// 	console.warn(e);
 		// }
   });

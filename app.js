@@ -11,6 +11,8 @@ const http = require('http');
 const fs = require('fs');
 const port = 3000;
 const app = http.createServer(function(req, res) {
+	if(!req.url) req.url = "index.html";
+
 	var headers = {'Content-Type': 'text/html'};
 
 	if(req.url.indexOf("css") >= 0)
@@ -130,6 +132,7 @@ class KQEvent {
 		return false;
 	}
 }
+
 class KQCollideable {
 	hitTest(x, y) {
 		if(x >= this.left 
@@ -204,13 +207,15 @@ class KQVirtual extends KQElement {
 		super();
 
 		this.id = id;
-		this.left = 0; // from css
-		this.top = 0; // from css
-		this.width = 0; // from css
-		this.height = 0; // from css
+
+		// placeholder values, real values come from css parsing (styles from elements on html level)
+		this.left = 0;
+		this.top = 0;
+		this.width = 0;
+		this.height = 0;
 	}
 
-	loop() {}
+	loop() {} // todo: replace with events now that they exist
 
 	collission(o) {
 		// console.log("COLLISSION", this.id, o.id);
@@ -229,7 +234,123 @@ class KQVirtual extends KQElement {
 	}
 }
 
-class KQEgg extends KQVirtual {
+class KQUpdateable extends KQVirtual {
+	constructor(id) {
+		super(id);
+
+		if(!KQUpdateable._pendingUpdates)
+			KQUpdateable._pendingUpdates = [];
+
+		if(!KQUpdateable._copies) 
+			KQUpdateable._copies = [];
+
+		this.watchMe(); // send updates to browsers
+	}
+
+	/**
+	 * only "flagged" objects are watched for changes
+	 */
+	watchMe() {
+		console.log('WATCH ME', this.id)
+		var e = new KQEvent(KQ.LOOP, () => {
+			this.updateLoop();
+		});
+		KQEvent.addEventListener(e);
+
+		KQUpdateable.updateCopy(this);
+	}
+
+	/** 
+	 * returns a stripped copy using only props from "propsToCheck"
+	 */
+	stripped() {
+
+		var copy = {};
+
+		KQUpdateable.propsToCheck.forEach(prop => {
+			if(this[prop] !== undefined) {
+				copy[prop] = this[prop];
+			}
+		});
+
+		copy.id = this.id; // always keep the id, for bridging
+
+		return copy;
+	}
+
+	static get propsToCheck() {
+		return [
+			"left",
+			"top",
+			"direction",
+			"invulnerable",
+			"attacking",
+			"warrior",
+		];
+	}
+
+	/**
+	 * does an "deep" match for only updateable properties
+	 * @return object returns null on non-match
+	 */
+	static stripMatch(o) {
+		if(!KQUpdateable._copies[o.id]) return false;
+
+		var copy = KQUpdateable._copies[o.id];
+
+		var keys = Object.keys(copy);
+		for(var i in keys) {
+			var key = keys[i];
+
+			if(o[key] != copy[key]) {
+				return null;
+			}
+		};
+
+		return copy;
+	}
+
+	/**
+	 * stores an "old" copy of this object to be 
+	 * compared against on the next loop
+	 * @return boolean true if the copy was updated, false if it's the same
+	 */
+	static updateCopy(o) {
+		if(KQUpdateable.stripMatch(o)) return false;
+
+		// update the copy
+		KQUpdateable._copies[o.id] = o.stripped();
+
+		// todo: return ONLY the properties that updated
+		return true;
+	}
+
+	updateLoop() {
+		try {
+			if(KQUpdateable.updateCopy(this)) {
+				// something changed
+				KQUpdateable.addUpdate(this);
+			}
+		} catch(e) {
+			console.log(e);
+		}
+	}
+
+	static addUpdate(o) {
+		KQUpdateable._pendingUpdates.push(o.stripped());
+	}
+
+	static sendUpdates() {
+		if(!KQUpdateable._pendingUpdates.length) return false; // no updates to send
+
+		var arr = KQUpdateable._pendingUpdates.slice(0);
+		io.sockets.emit(KQ.VIRTUAL_UPDATE, arr);
+
+		KQUpdateable._pendingUpdates = [];
+	}
+}
+
+class KQEgg extends KQUpdateable {
 	constructor(id) {
 		super(id);
 
@@ -264,7 +385,7 @@ class KQEgg extends KQVirtual {
 	}
 }
 
-class KQBerry extends KQVirtual {
+class KQBerry extends KQUpdateable {
 	constructor(id) {
 		super(id);
 
@@ -333,7 +454,7 @@ class KQBerry extends KQVirtual {
 	}
 }
 
-class KQSnail extends KQVirtual {
+class KQSnail extends KQUpdateable {
 	constructor(id) {
 		super(id);
 
@@ -399,7 +520,7 @@ class KQSnailCage extends KQVirtual {
 	}
 }
 
-class KQShrine extends KQVirtual {
+class KQShrine extends KQUpdateable {
 	constructor(id) {
 		super(id);
 	}
@@ -482,7 +603,7 @@ class KQGoal extends KQVirtual {
 	}
 }
 
-class KQToon extends KQVirtual {
+class KQToon extends KQUpdateable {
 	constructor(id) {
 		super(id);
 
@@ -495,7 +616,7 @@ class KQToon extends KQVirtual {
 	facing(enemy) {
 		if(this.direction < 0 && enemy.left < this.left) return true;
 		if(this.direction > 0 && enemy.left > this.left) return true;
-		
+
 		return false;
 	}
 
@@ -861,6 +982,12 @@ class KQQueen extends KQToon {
 	collission(o) {
 		super.collission(o);
 
+		if(o instanceof KQToon) {
+			// auto attack
+			if(o.team != this.team && this.facing(o))
+				this.attack();
+		}
+
 		if(o instanceof KQQueen) {
 			if(o.attacking && o.facing(this) && o.top < this.top)
 				this.attacked(o);
@@ -902,6 +1029,7 @@ game.loop = () => {
 		try {
 			if(!user.toonId) return; // user isn't ready yet
 
+			// todo: add these to the KQ.LOOP event
 			var looped = []; // calls loop on KQVirtual objects
 			looped.push.apply(looped, game.virtual.level.berries);
 			looped.push.apply(looped, game.virtual.level.goals);
@@ -917,7 +1045,7 @@ game.loop = () => {
 			user.keys.forEach(key => {
 				switch(true) {
 					case key == KQ.KEY_SPACE:
-						toon.attack();
+						// toon.attack(); YOU CANT ATTACK IN KQ haha oops
 						break;
 					case key == KQ.KEY_UP:
 						toon.jump();
@@ -965,7 +1093,8 @@ game.loop = () => {
 		toon.top += toon.accel;
 	});
 
-	io.sockets.emit(KQ.VIRTUAL_UPDATE, game.virtual);
+	// io.sockets.emit(KQ.VIRTUAL_UPDATE, game.virtual);
+	KQUpdateable.sendUpdates();
 }
 KQEvent.addEventListener(new KQEvent(KQ.GAME_START, () => {
 	game.gameInProgress = true;
