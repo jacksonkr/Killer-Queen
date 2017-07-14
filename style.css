@@ -5,8 +5,14 @@ body {
 	user-select: none;
 }
 
-.direction-flip {
+.direction-right {
+
+}
+.direction-left {
 	transform: scaleX(-1);
+}
+.direction-down {
+
 }
 
 .hide {
@@ -121,6 +127,9 @@ body {
 }
 .queen.attacking {
 	background: url("assets/queen-stance-attack.png") no-repeat;
+}
+.queen.direction-down {
+	background: url("assets/queen-dive-attack.png") no-repeat;
 }
 .queen {
 	position: absolute;

@@ -5,7 +5,7 @@ window.onload = function() {
 		ALERT:"alert",
 		KEY_UPDATE:"key_update",
 		VIRTUAL_UPDATE:"virtual_update",
-		CHARACTER_SELECT:"character_select",
+		USER_CHARACTER_SELECT:"USER_CHARACTER_SELECT",
 		TEAM_BLUE:"teamBlue",
 		TEAM_GOLD:"teamGold",
 		TOON_QUEEN:"queen",
@@ -17,8 +17,9 @@ window.onload = function() {
 		WIN_ECONOMIC:"win_economic",
 		WIN_MILITARY:"win_military",
 		WIN_SNAIL:"win_snail",
-		DIRECTION_RIGHT:1,
-		DIRECTION_LEFT:-1,
+		DIRECTION_RIGHT:"direction-right",
+		DIRECTION_LEFT:"direction-left",
+		DIRECTION_DOWN:"direction-down",
 		MENU_UPDATE:"menu_update",
 		USER_READY:"user_ready",
 	}
@@ -40,6 +41,10 @@ window.onload = function() {
   	ele.innerHTML = data.time;
   });
 
+  socket.on(KQ.GAME_RESET, data => {
+  	document.getElementById('menu').classList.remove("hide");
+  })
+
   socket.on(KQ.GAME_START, data => {
   	var list = document.getElementsByTagName("li");
   	for(var i in list) {
@@ -52,7 +57,6 @@ window.onload = function() {
   });
 
   socket.on(KQ.VIRTUAL_UPDATE, data => {
-console.log(data[0])
   	// try {
   		data.forEach(o => {
 		  	var ele = document.getElementById(o.id);
@@ -60,8 +64,10 @@ console.log(data[0])
 					ele.style.left = o.left;
 					ele.style.top = o.top;
 
-					if(o.direction > 0) ele.classList.remove('direction-flip')
-					else ele.classList.add('direction-flip');
+					ele.classList.remove('direction-left');
+					ele.classList.remove('direction-right');
+					ele.classList.remove('direction-down');
+					ele.classList.add(o.direction);
 
 					if(o.warrior == true) ele.classList.add("warrior");
 					else ele.classList.remove("warrior");
@@ -91,9 +97,9 @@ console.log(data[0])
   		if(li) li.classList.add("taken");
   	});
 
-  	if(!data.gameInProgress) {
+  	// if(!data.gameInProgress) {
   		document.getElementById('menu').classList.remove("hide");
-  	}
+  	// }
   });
 
   socket.on(KQ.ALERT, (data) => {
@@ -129,7 +135,7 @@ console.log(data[0])
 		document.getElementById("player-ready").disabled = false;
 		document.getElementById("player-ready").classList.remove("selected");
 
-		socket.emit(KQ.CHARACTER_SELECT, {toonId:id});
+		socket.emit(KQ.USER_CHARACTER_SELECT, {toonId:id});
 	}
 
 	window.playerReady = () => {
