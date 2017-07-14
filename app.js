@@ -4,6 +4,8 @@
  */
 
 
+"use strict";
+
 process.on('uncaughtException', e => console.warn(e.stack));
 process.on('warning', e => console.warn(e.stack));
 
@@ -32,7 +34,9 @@ const KQ = {
 	ALERT:"alert",
 	KEY_UPDATE:"key_update",
 	VIRTUAL_UPDATE:"virtual_update",
-	CHARACTER_SELECT:"character_select",
+	USER_CHARACTER_SELECT:"USER_CHARACTER_SELECT",
+	USER_READY:"user_ready",
+	USER_DISCONNECT:"user_disconnect",
 	TEAM_BLUE:"teamBlue",
 	TEAM_GOLD:"teamGold",
 	TOON_QUEEN:"queen",
@@ -44,24 +48,28 @@ const KQ = {
 	WIN_ECONOMIC:"win_economic",
 	WIN_MILITARY:"win_military",
 	WIN_SNAIL:"win_snail",
-	DIRECTION_RIGHT:1,
-	DIRECTION_LEFT:-1,
+	DIRECTION_RIGHT:"direction-right",
+	DIRECTION_LEFT:"direction-left",
+	DIRECTION_DOWN:"direction-down",
 	MENU_UPDATE:"menu_update",
-	USER_READY:"user_ready",
 
 	// server specific
-	KEY_SPACE:" ",
 	KEY_UP:"ArrowUp",
 	KEY_DOWN:"ArrowDown",
 	KEY_LEFT:"ArrowLeft",
 	KEY_RIGHT:"ArrowRight",
+	ATTACKED:"attacked",
 	ATTACK_DURATION: 100,
 	WORKER_SPEED: 2,
 	WARRIOR_SPEED: 3,
 	SHRINE_STANDING_LIMIT: 1 * 1000, // in milliseconds
 	SNAIL_SPEED: 0.1,
-	GAME_START_DELAY: 0, // 3 seconds
+	SNAIL_SWALLOW_DURATION: 3 * 1000,
+	SNAIL_ATTACK: "snail_attack",
+	GAME_START_DELAY: 0, // 3,
 	GAME_RESET: "game_reset",
+	GAME_NO_USERS_RESET_DELAY: 5 * 1000, // after no users for 5 seconds reset.
+	JUMP:"jump",
 	BERRY_TOON_OFFSET: {
 		top: 16,
 		left: 7
@@ -72,15 +80,19 @@ const KQ = {
 	}
 }
 
-class KQEvent {
-	constructor(type, callback, owner, priority) {
-		if(callback === undefined) throw Error("undefined callback!", this);
-		if(priority === undefined) priority = 0;
-		if(owner === undefined) owner = null;
 
-		this.owner = owner;
+/**
+ * target is what triggers the event dispatcher
+ * currentTarget is what you assigned your listener to
+ * todo: make a KQEventDispatcher by the parent class of all
+ */
+class KQEvent {
+	constructor(type, target, priority) {
+		if(priority === undefined) priority = 0;
+		if(target === undefined) target = null;
+
+		this.target = target;
 		this.type = type;
-		this.callback = callback;
 		this.priority = priority;
 	}
 
@@ -100,33 +112,40 @@ class KQEvent {
 		});
 	}
 
-	static dispatchEvent(type) {
+	static dispatchEvent(event) {
+		if(!event) throw new Error("event must be defined!");
+		if(!(event instanceof KQEvent)) throw new Error("event must be type KQEvent!");
+
 		KQEvent._listeners.forEach(l => {
-			if(l.type == type) l.callback();
+			if(l.type == event.type) l.callback(event);
 		});
 	}
 	
-	static addEventListener(l) {
+	static addEventListener(currentTarget, type, callback, priority) {
+		if(callback === undefined) throw new Error("undefined callback!", this);
+
 		if(!KQEvent._listeners) KQEvent._listeners = [];
 
-		KQEvent._listeners.push(l);
+		KQEvent._listeners.push({currentTarget:currentTarget, type:type, callback:callback, priority:priority});
 		KQEvent.prioritize();
 	}
-	static hasEventListener(type, owner) {
+	static hasEventListener(type, currentTarget) {
 		for(var i in KQEvent._listeners) {
 			var l = KQEvent._listeners[i];
 
-			if(l.type == type && l.owner == owner) return l;
+			if(l.type == type && l.currentTarget == currentTarget) return l;
 		}
 
 		return null;
 	}
-	static removeEventListener(type) {
+	static removeEventListener(event) {
 		var list = KQEvent._listeners;
 		for(var i in list) {
 			var l = list[i];
-			if(l.type == type)
-				return KQEvent._listeners.splice(i, 1);
+			if(l.type == event.type
+			&& l.currentTarget == event.currentTarget)
+				// return KQEvent._listeners.splice(i, 1);
+				return true;
 		}
 
 		return false;
@@ -179,17 +198,25 @@ class KQElement extends KQCollideable {
 	constructor() {
 		super();
 
-		KQEvent.addEventListener(new KQEvent(KQ.GAME_START, () => {
+		KQEvent.addEventListener(this, KQ.GAME_START, () => {
 			this.mReset();
-		}, this));
+		});
 	}
 
-	initCSS(o) {
+	get initCSS() {
+		return this._initCSS;
+	}
+	set initCSS(o) {
 		this._initCSS = o;
 		Object.assign(this, o);
 	}
 
-	mReset() {}
+	mReset() {
+		var id = "";
+		if(this.constructor.name) id = this.constructor.name;
+		if(this.id) id = this.id;
+		// console.log("RESET", Date.now(), id);
+	};
 }
 class KQGround extends KQElement {
 	constructor(x, y, w, h) {
@@ -219,6 +246,12 @@ class KQVirtual extends KQElement {
 
 	collission(o) {
 		// console.log("COLLISSION", this.id, o.id);
+	}
+
+	mReset() {
+		super.mReset();
+
+		if(this.initCSS) this.initCSS = this.initCSS; // starts back at html location
 	}
 
 	get team() {
@@ -251,11 +284,10 @@ class KQUpdateable extends KQVirtual {
 	 * only "flagged" objects are watched for changes
 	 */
 	watchMe() {
-		console.log('WATCH ME', this.id)
-		var e = new KQEvent(KQ.LOOP, () => {
+		// console.log('WATCH ME', this.id)
+		KQEvent.addEventListener(this, KQ.LOOP, () => {
 			this.updateLoop();
 		});
-		KQEvent.addEventListener(e);
 
 		KQUpdateable.updateCopy(this);
 	}
@@ -354,8 +386,7 @@ class KQEgg extends KQUpdateable {
 	constructor(id) {
 		super(id);
 
-		var e = KQEvent.hasEventListener(KQ.GAME_START, this);
-		e.priority = 1000;
+		var e = KQEvent.hasEventListener(KQ.GAME_START, this, 1000);
 	}
 
 	static eggsForTeam(team) {
@@ -390,6 +421,8 @@ class KQBerry extends KQUpdateable {
 		super(id);
 
 		this.toon = null;
+
+		this.active = true;
 	}
 
 	collission(o) {
@@ -397,9 +430,16 @@ class KQBerry extends KQUpdateable {
 
 		if(o instanceof KQWorker) {
 			this.toon = o;
+
+			KQEvent.addEventListener(this, KQ.SNAIL_ATTACK, event => {
+				if(event.target == this.toon) {
+					this.toon = false;
+				}
+			});
 		}
 
 		if(o instanceof KQGoal) {
+			this.active = false;
 			this.toon.loseBerry();
 			this.toon = null;
 
@@ -436,8 +476,10 @@ class KQBerry extends KQUpdateable {
 
 		// be carried by the toon
 		if(this.toon) {
+			var dir_adjust = -1;
+			if(this.toon.direction == KQ.DIRECTION_RIGHT) dir_adjust = 1;
 			this.top = this.toon.top + KQ.BERRY_TOON_OFFSET.top;
-			this.left = this.toon.left + this.toon.width/2 - this.width/2 - KQ.BERRY_TOON_OFFSET.left * this.toon.direction;
+			this.left = this.toon.left + this.toon.width/2 - this.width/2 - KQ.BERRY_TOON_OFFSET.left * dir_adjust;
 
 			this.goalCheck();
 		}
@@ -458,12 +500,47 @@ class KQSnail extends KQUpdateable {
 	constructor(id) {
 		super(id);
 
+		this.swallowing = false;
 		this.speed = KQ.SNAIL_SPEED;
+
+		KQEvent.addEventListener(this, KQ.SNAIL_ATTACK, event => {
+			this.swallowing = true;
+			setTimeout(() => {
+				this.swallowing = false;
+			}, KQ.SNAIL_SWALLOW_DURATION);
+		});
+
+		KQEvent.addEventListener(this, KQ.JUMP, event => {
+			if(event.target == this.toon) {
+				//jumped off the snail;
+				this.toon = null;
+			}
+		});
+
+		KQEvent.addEventListener(this, KQ.GAME_RESET, event => {
+			this.mReset();
+		});
 	}
 
 	collission(o) {
 		if(o instanceof KQWorker) {
-			this.toon = o;
+			if(!this.toon) {
+				this.toon = o;
+
+				KQEvent.addEventListener(this, KQ.ATTACKED, event => {
+					if(event.target == this.toon) {
+						console.log("SNAIL RIDER DEAD")
+						this.toon = null;
+						console.log(KQEvent.removeEventListener(event));
+					}
+				});
+			} else {
+				if(o.team != this.toon.team) {
+					//swallow the enemy
+					if(this.swallowing === false)
+						KQEvent.dispatchEvent(new KQEvent(KQ.SNAIL_ATTACK, o));
+				}
+			}
 		}
 
 		if(o instanceof KQSnailCage) {
@@ -496,20 +573,22 @@ class KQSnail extends KQUpdateable {
 	}
 
 	mReset() {
+		super.mReset();
+
 		this.toon = null;
 	}
 
 	goLeft() {
-		if(this.toon && this.toon.team == KQ.TEAM_BLUE) {
+		if(!this.swallowing && this.toon && this.toon.team == KQ.TEAM_BLUE) {
 			this.direction = KQ.DIRECTION_LEFT;
-			this.left += this.speed * this.direction;
+			this.left -= this.speed;
 		}
 	}
 
 	goRight() {
-		if(this.toon && this.toon.team == KQ.TEAM_GOLD) {
+		if(!this.swallowing && this.toon && this.toon.team == KQ.TEAM_GOLD) {
+			this.left += this.speed;
 			this.direction = KQ.DIRECTION_RIGHT;
-			this.left += this.speed * this.direction;
 		}
 	}
 }
@@ -608,14 +687,52 @@ class KQToon extends KQUpdateable {
 		super(id);
 
 		this.reset_delay = 3 * 1000;
+
+		KQEvent.addEventListener(this, KQ.USER_READY, event => {
+			if(event.target.toonId == this.id) {
+				// toon is now human
+				this.isAIPlayer = false;
+			}
+		});
+		KQEvent.addEventListener(this, KQ.USER_DISCONNECT, event => {
+			if(event.target.toonId && event.target.toonId == this.id) {
+				// toon is now AI
+				this.isAIPlayer = true;
+			}
+		});
+	}
+
+	/**
+	 * using this so the character is not looking down while on the ground
+	 */
+	get direction() {
+		return this._direction;
+	}
+	set direction(v) {
+		if(v == null) {
+			this._direction = this._last_horiz_direction;
+			return;
+		}
+
+		// store only left/right direction
+		if(v != KQ.DIRECTION_DOWN)
+			this._last_horiz_direction = v;
+
+
+
+		// down has priority of left/right when available
+		if(this._direction == KQ.DIRECTION_DOWN) return;
+
+		this._direction = v;
 	}
 
 	/**
 	 * check if this toon is facing another toon 
 	 */
 	facing(enemy) {
-		if(this.direction < 0 && enemy.left < this.left) return true;
-		if(this.direction > 0 && enemy.left > this.left) return true;
+		if(this.direction == KQ.DIRECTION_DOWN && enemy.top > this.top) return true;
+		if(this.direction == KQ.DIRECTION_LEFT && enemy.left < this.left) return true;
+		if(this.direction == KQ.DIRECTION_RIGHT && enemy.left > this.left) return true;
 
 		return false;
 	}
@@ -629,21 +746,32 @@ class KQToon extends KQUpdateable {
 		});
 	}
 
+	get invulnerable() {
+		return this._invulnerable;
+	}
+	set invulnerable(b) {
+		if(this._invulnerableTimeoutID >= 0 && !b) clearTimeout(invulnerableTimeoutID);
+
+		this._invulnerable = b;
+
+		if(b === true) {
+			this._invulnerableTimeoutID = setTimeout(() => {
+				this.swallowTimeoutID = null;
+				this.invulnerable = false;
+			}, this.reset_delay);
+		}
+	}
+
 	/**
 	 * when the character is born / is reborn
 	 */
 	mReset() {
-		console.log("RESET", this.id);
+		super.mReset();
 
 		this.aiCheck();
 
 		this.invulnerable = true;
-		setTimeout(() => {
-			this.invulnerable = false;
-		}, this.reset_delay);
 		super.mReset();
-
-		if(this._initCSS) this.initCSS(this._initCSS); // starts back at html location
 
 		this.accel = 0;
 		this.speed = KQ.WORKER_SPEED;
@@ -651,6 +779,8 @@ class KQToon extends KQUpdateable {
 	}
 
 	attacked() {
+		KQEvent.dispatchEvent(new KQEvent(KQ.ATTACKED, this));
+
 		if(this.invulnerable) return;
 
 		console.log("ATTACKED", this.id);
@@ -665,36 +795,80 @@ class KQToon extends KQUpdateable {
 	}
 
 	loop() {
-		// runs every frame
-		this.groundCheck();
+		this.direction = null;
 
+		// runs every frame
+		this.gravityCheck(); // needs to be before ground
+		this.groundCheck();
+		this.visibilityCheck();
 		this.roundNumbers();
 
-		if(this.isAIPlayer) this.AILoop();
+		if(this.isAIPlayer === true) this.AILoop();
+	}
+
+	gravityCheck() {
+		this.accel += game.props.gravity_rate;
+		if(this.accel > game.props.gravity_max) this.accel = game.props.gravity_max;
+		this.top += this.accel;
+	}
+
+	static findNearestElement(arr, o) {
+		var distanceFrom = a => {
+			return o.left - a.left + o.top - a.top;
+		}
+
+		var ret = null;
+		arr.forEach(berry => {
+			if(berry.active) {
+				if(ret) {
+					// is closer than current berry?
+					if(distanceFrom(berry) < distanceFrom(ret)) ret = berry;
+				} else {
+					if(!berry.toon) ret = berry;
+				}
+			}
+		});
+
+		return ret;
 	}
 
 	AILoop() {
-		// var dirFunc;
-		// var dirTimer;
-		// var tDir = () => {
-		// 	dirTimer = setTimeout(() => {
-		// 		dirFunc = this.goRight;
-		// 		if(Math.random() > 0.5) dirFunc = this.goLeft;
-		// 		dirTimer = null;
-		// 	}, Math.random() * 10000 + 1000);
-		// }
-		// if(!dirTimer) tDir();
-		// if(dirFunc) this.goRight();
+		if(!this.isAIPlayer) return;
 
-		// var jumpTimer;
-		// var tJump = () => {
-		// 	jumpTimer = setTimeout(() => {
-		// 		this.jump();
-		// 		tJump();
-		// 		jumpTimer = null;
-		// 	}, Math.random() * 1000 + 1000);
-		// }
-		// if(!jumpTimer) tJump();
+		this.goRight();
+		return;
+
+		if(this.snail) {
+			if(this.team == KQ.TEAM_BLUE) this.goLeft();
+			if(this.team == KQ.TEAM_GOLD) this.goRight();
+			return;
+		}
+
+		if(!this.berry) {
+			// target nearest berry
+			var b = KQWorker.findNearestElement(game.virtual.level.berries, this);
+			// figure out how to get to berry
+			if(b) {
+				console.log(b.left, this.left);
+				if(b.left < this.left) this.goLeft();
+				if(b.left > this.left) this.goRight();
+				return;
+			}
+		}
+
+		if(this.berry) {
+			// target nearest goal
+			KQWorker.findNearestElement(game.virtual.level.goals, this);
+		}
+	}
+
+	/**
+	 * check offscreen / off level (repeat)
+	 */
+	visibilityCheck() {
+		if(this.left + this.width/2 < 0) this.left = game.virtual.level.width - this.width/2;
+		if(this.left + this.width/2 > game.virtual.level.width) this.left = 0;
+
 	}
 
 	roundNumbers() {
@@ -765,6 +939,8 @@ class KQToon extends KQUpdateable {
 	}
 
 	jump() {
+		KQEvent.dispatchEvent(new KQEvent(KQ.JUMP, this));
+
 		this.grounded = false;
 		this.accel = -5;
 	}
@@ -781,30 +957,90 @@ class KQToon extends KQUpdateable {
 
 	goDown() {
 		this.top += this.speed
+		if(!this.grounded) this.direction = KQ.DIRECTION_DOWN
 	}
 }
 class KQWorker extends KQToon {
 	constructor(id) {
 		super(id);
+
+		KQEvent.addEventListener(this, KQ.SNAIL_ATTACK, event => {
+			if(this == event.target && !game.virtual.level.snail.swallowing) {
+				this.swallowed();
+			}
+		});
+
+		// REDUNTANT! worker already calls it's own attacked events on itself -jkr
+		// KQEvent.addEventListener(this, KQ.ATTACKED, event => {
+		// 	if(this == event.target) {
+		// 		this.attacked();
+		// 	}
+		// });
+	}
+
+	unresponsive(bool) {
+		if(bool === undefined) bool = true;
+
+		this._unresponsive = bool;
+	}
+
+	swallowed() {
+		this.active = false;
+
+		this.loseBerry();
+
+		// resposition in front of the snail
+		var snail = game.virtual.level.snail;
+		this.top = snail.top + this.height * 1.2;
+		if(snail.direction == KQ.DIRECTION_LEFT)  this.left = snail.left - this.width / 2;
+		if(snail.direction == KQ.DIRECTION_RIGHT) this.left = snail.left + snail.width;
+
+		if(!this.swallowTimeoutID) {
+			this.swallowTimeoutID = setTimeout(() => {
+				this.mReset();
+			}, KQ.SNAIL_SWALLOW_DURATION);
+		}
 	}
 
 	jump() {
-		if(this.grounded || this.warrior) {
+		if(this.grounded || this.warrior || this.snail) {
 			super.jump();
+
+
+			// todo: fix the snail jump off
+			if(this.snail) {
+				// jump off the snail
+				if(this.snail.direction == KQ.DIRECTION_LEFT)
+					this.left = this.snail.left - this.snail.width * 1;
+				if(this.snail.direction == KQ.DIRECTION_RIGHT)
+					this.left = this.snail.left + this.snail.width * 1.4;
+
+				this.snail = null;
+			}
 		}
 	}
 
 	loop() {
-		super.loop();
+		if(this.active === true) {
+			super.loop();
 
-		this.berryCheck();
-		this.snailCheck();
-		this.toonCheck();
-		this.shrineCheck();
-		this.standingCheck();
+			this.berryCheck();
+			this.snailCheck();
+			this.toonCheck();
+			this.shrineCheck();
+			this.standingCheck();
+		}
 	}
 
 	attacked() {
+		if(this.snail) {
+			this.snail = null;
+		}
+
+		if(this.berry) {
+			this.berry = null;
+		}
+
 		super.attacked();
 	}
 
@@ -817,7 +1053,8 @@ class KQWorker extends KQToon {
 		}
 
 		if(o instanceof KQSnail) {
-			this.snail = true;
+			if(o.toon.id == this.id)
+				this.snail = true;
 		}
 
 		if(o instanceof KQWorker) {
@@ -876,6 +1113,9 @@ class KQWorker extends KQToon {
 	mReset() {
 		super.mReset();
 
+		this.swallowTimeoutID = false;
+
+		this.active = true;
 		this.standingStartTime = 0;
 		this.standingTime = 0;
 		this.warrior = false;
@@ -902,7 +1142,7 @@ class KQWorker extends KQToon {
 		if(!this.warrior) {
 			if(!this.snail) {
 				var snail = game.virtual.level.snail;
-				if(snail.hitTestBounds(this.boundingBox)) {
+				if(!snail.toon && snail.hitTestBounds(this.boundingBox)) {
 					snail.collission(this);
 					this.collission(snail);
 				}
@@ -915,14 +1155,17 @@ class KQWorker extends KQToon {
 	}
 
 	goLeft() {
+		if(this.active === false) return;
 		if(this.snail) game.virtual.level.snail.goLeft();
 		else super.goLeft();
 	}
 	goRight() {
+		if(this.active === false) return;
 		if(this.snail) game.virtual.level.snail.goRight();
 		else super.goRight();
 	}
 	goDown() {
+		if(this.active === false) return;
 		if(this.warrior) super.goDown();
 	}
 }
@@ -956,16 +1199,20 @@ class KQQueen extends KQToon {
 	mReset() {
 		super.mReset();
 
-		// respawn at egg
-		var eggs = KQEgg.eggsForTeam(this.team);
-		var egg = eggs[0];
-		console.log("RESPAWN AT EGG", egg.id, egg.hatched);
+		try {
+			// respawn at egg
+			var eggs = KQEgg.eggsForTeam(this.team);
+			var egg = eggs[0];
+			console.log("RESPAWN AT EGG", egg.id, egg.hatched);
 
-		if(egg) {
-			this.top = egg.top;
-			this.left = egg.left;
+			if(egg) {
+				this.top = egg.top;
+				this.left = egg.left;
 
-			egg.hatch(this);
+				egg.hatch(this);
+			}
+		} catch(e) {
+			console.log(e);
 		}
 
 	}
@@ -1018,12 +1265,12 @@ var game = {
 	},
 	win:(type,team) => {
 		io.sockets.emit(KQ.GAME_WIN, {type:type, team:team});
-		KQEvent.dispatchEvent(KQ.GAME_OVER);
+		KQEvent.dispatchEvent(new KQEvent(KQ.GAME_OVER));
 		clearInterval(game.timer);
 	}
 };
 game.loop = () => {
-	KQEvent.dispatchEvent(KQ.LOOP);
+	KQEvent.dispatchEvent(new KQEvent(KQ.LOOP));
 
 	game.users.forEach(user => {
 		try {
@@ -1044,9 +1291,6 @@ game.loop = () => {
 
 			user.keys.forEach(key => {
 				switch(true) {
-					case key == KQ.KEY_SPACE:
-						// toon.attack(); YOU CANT ATTACK IN KQ haha oops
-						break;
 					case key == KQ.KEY_UP:
 						toon.jump();
 						break;
@@ -1065,16 +1309,9 @@ game.loop = () => {
 				}
 			});
 
-			// check off level (repeat)
-			if(toon.left + toon.width/2 < 0) toon.left = game.virtual.level.width - toon.width/2;
-			if(toon.left + toon.width/2 > game.virtual.level.width) toon.left = 0;
-
-			// disable space key if it's listed
-			var xoss = [KQ.KEY_UP, KQ.KEY_SPACE];
-			xoss.forEach(k => {
-				var xos = user.keys.indexOf(k);
-				if(xos >= 0) user.keys.splice(xos, 1);
-			});
+			// disable jump key if it's listed
+ 			var xos = user.keys.indexOf(KQ.KEY_UP);
+ 			if(xos >= 0) user.keys.splice(xos, 1);
 
 		} catch(e) { 
 			console.warn(e);
@@ -1083,29 +1320,27 @@ game.loop = () => {
 
 	// loop on all
 	// todo: move this to the KQ.LOOP event for the KQVirtual class
-	var keys = Object.keys(game.virtual.level.toons);
-	keys.forEach(key => {
-		var toon = game.virtual.level.toons[key];
+	// var keys = Object.keys(game.virtual.level.toons);
+	// keys.forEach(key => {
+	// 	var toon = game.virtual.level.toons[key];
 		
-		// implement gravity
-		toon.accel += game.props.gravity_rate;
-		if(toon.accel > game.props.gravity_max) toon.accel = game.props.gravity_max;
-		toon.top += toon.accel;
-	});
+		
+	// });
 
 	// io.sockets.emit(KQ.VIRTUAL_UPDATE, game.virtual);
 	KQUpdateable.sendUpdates();
 }
-KQEvent.addEventListener(new KQEvent(KQ.GAME_START, () => {
+KQEvent.addEventListener(this, KQ.GAME_START, event => {
 	game.gameInProgress = true;
+	if(game.timer) clearInterval(game.timer);
 	game.timer = setInterval(game.loop, 1000 / 60);
 	io.sockets.emit(KQ.GAME_START, null);
-}));
-KQEvent.addEventListener(new KQEvent(KQ.GAME_OVER, () => {
-	KQEvent.dispatchEvent(KQ.GAME_RESET);
+});
+KQEvent.addEventListener(this, KQ.GAME_OVER, event => {
+	KQEvent.dispatchEvent(new KQEvent(KQ.GAME_RESET));
 	io.sockets.emit(KQ.GAME_OVER);
-}))
-KQEvent.addEventListener(new KQEvent(KQ.GAME_COUNTDOWN, () => {
+});
+KQEvent.addEventListener(this, KQ.GAME_COUNTDOWN, event => {
 	game.countdownTimer = setTimeout(() => {
 		var diff = Date.now() - game.countDownStartTime;
 		diff = Math.round(diff / 1000);
@@ -1113,24 +1348,35 @@ KQEvent.addEventListener(new KQEvent(KQ.GAME_COUNTDOWN, () => {
 		io.sockets.emit(KQ.GAME_COUNTDOWN, {time:KQ.GAME_START_DELAY - diff});
 
 		if(diff >= KQ.GAME_START_DELAY) {
-			KQEvent.dispatchEvent(KQ.GAME_START);
+			KQEvent.dispatchEvent(new KQEvent(KQ.GAME_START));
 		} else {
-			KQEvent.dispatchEvent(KQ.GAME_COUNTDOWN);
+			KQEvent.dispatchEvent(new KQEvent(KQ.GAME_COUNTDOWN));
 		}
 	}, 1000);
-}));
-KQEvent.addEventListener(new KQEvent(KQ.GAME_RESET, () => {
+});
+KQEvent.addEventListener(this, KQ.GAME_RESET, event => {
 	console.log("GAME RESET !!");
 	game.gameInProgress = false;
 	clearInterval(game.timer);
 	game.timer = null;
-}));
-KQEvent.addEventListener(new KQEvent(KQ.MENU_UPDATE, () => {
-	io.sockets.emit(KQ.MENU_UPDATE, {
-		users: game.users,
-		gameInProgress: game.gameInProgress,
+});
+KQEvent.addEventListener(this, KQ.MENU_UPDATE, event => {
+	var us = [];
+	game.users.forEach(user => {
+		var u = {};
+		Object.assign(u, user);
+		delete u.socket;
+		us.push(u)
 	});
-}))
+	game.users.forEach(user => {
+		if(!user.toonId) {
+			user.socket.emit(KQ.MENU_UPDATE, {
+				users: us,
+				gameInProgress: game.gameInProgress,
+			});
+		}
+	});
+});
 
 // parse index.html for level data
 const cheerio = require('cheerio');
@@ -1142,7 +1388,7 @@ fs.readFile('index.html', 'utf8', (err,data) => {
 
 	fs.readFile('style.css', 'utf8', (err,data) => {
 		if(err) throw err;
-		vcss = css.parse(data);
+		var vcss = css.parse(data);
 
 		// add json version to css rules
 		vcss.stylesheet.rules.forEach(rule => {
@@ -1262,8 +1508,7 @@ fs.readFile('index.html', 'utf8', (err,data) => {
 				if(j.height)
 					o.height = s2n(j.height);
 
-				// Object.assign(vobj, o);
-				vobj.initCSS(o);
+				vobj.initCSS = o;
 			}
 		}
 
@@ -1275,13 +1520,19 @@ io.sockets.on("connection", socket => {
 	var user = {};
 	user.id = Date.now();
 	user.keys = [];
+	user.socket = socket;
 	socket.user = user;
 	game.users.push(user);
-	console.log('connected', user);
+	user.toString = function() {
+		var toonId = "";
+		if(this.toonId) toonId = this.toonId;
+		return this.id + ", " + toonId;
+	}
+	if(game.noUsersResetDelayTimeoutID) clearTimeout(game.noUsersResetDelayTimeoutID);
 
-	KQEvent.dispatchEvent(KQ.MENU_UPDATE);
+	KQEvent.dispatchEvent(new KQEvent(KQ.MENU_UPDATE, game));
 
-	socket.on(KQ.CHARACTER_SELECT, data => {
+	socket.on(KQ.USER_CHARACTER_SELECT, data => {
 		// make sure character isn't already taken
 		var taken = false;
 		game.users.forEach(u => {
@@ -1295,21 +1546,31 @@ io.sockets.on("connection", socket => {
 		user.ready = false;
 		user.toonId = data.toonId;
 
-		KQEvent.dispatchEvent(KQ.MENU_UPDATE);
+		KQEvent.dispatchEvent(new KQEvent(KQ.MENU_UPDATE), game);
 	});
 
 	socket.on(KQ.USER_READY, data => {
 		user.ready = data.ready;
 
 		if(user.ready) {
+			KQEvent.dispatchEvent(new KQEvent(KQ.USER_READY, user));
+
+			if(game.gameInProgress) {
+				// quick join
+				user.socket.emit(KQ.GAME_START);
+				return;
+			}
+
+			// if we're here then no game is in progress
 			var gameReady = true;
 			if(game.users.forEach(u => {
 				if(!u.toonId || !u.ready) gameReady = false;
 			}));
 
+			// once all users are ready, start the countdown
 			if(gameReady) {
 				game.countDownStartTime = Date.now();
-				KQEvent.dispatchEvent(KQ.GAME_COUNTDOWN);
+				KQEvent.dispatchEvent(new KQEvent(KQ.GAME_COUNTDOWN), game);
 			}
 		}
 	})
@@ -1321,16 +1582,28 @@ io.sockets.on("connection", socket => {
 	socket.on('disconnect', data => {
 		// socket.broadcast.emit(COMMAND.GOODBYE, user);
 		// clearInterval(loop_id);
+
+		KQEvent.dispatchEvent(new KQEvent(KQ.USER_DISCONNECT, user));
+
+
 		user.toonId = undefined;
 		for(var i in game.users) {
 			var o = game.users[i];
 			if(o.id == user.id) game.users.splice(i, 1);
 		};
 
+		console.log("DISCONNECT", game.users.length);
+
 		if(game.users.length)
-			KQEvent.dispatchEvent(KQ.MENU_UPDATE);
-		else 
-			KQEvent.dispatchEvent(KQ.GAME_RESET);
+			KQEvent.dispatchEvent(new KQEvent(KQ.MENU_UPDATE, game));
+		else {
+			game.noUsersResetDelayTimeoutID = setTimeout(() => {
+				console.log("GAME SHUT OFF");
+				io.sockets.broadcast(KQ.GAME_RESET);
+				KQEvent.dispatchEvent(new KQEvent(KQ.GAME_RESET, game));	
+			}, KQ.GAME_NO_USERS_RESET_DELAY);
+		}
+			
 	});
 });
 
