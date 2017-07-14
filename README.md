@@ -30,3 +30,7 @@ css - parses the css to get info on game items (width/height), this was done qui
 
 - cheerio is used to parse the HTML
 - css is used to parse the CSS (although not so good)
+
+<h1>How to play</h1>
+
+<a href="https://www.youtube.com/watch?v=ii69y58Ks5g">Watch this video</a>
