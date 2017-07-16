@@ -6,6 +6,8 @@ window.onload = function() {
 		KEY_UPDATE:"key_update",
 		VIRTUAL_UPDATE:"virtual_update",
 		USER_CHARACTER_SELECT:"USER_CHARACTER_SELECT",
+		USER_READY:"user_ready",
+		USER_DISCONNECT:"user_disconnect",
 		TEAM_BLUE:"teamBlue",
 		TEAM_GOLD:"teamGold",
 		TOON_QUEEN:"queen",
@@ -21,7 +23,10 @@ window.onload = function() {
 		DIRECTION_LEFT:"direction-left",
 		DIRECTION_DOWN:"direction-down",
 		MENU_UPDATE:"menu_update",
-		USER_READY:"user_ready",
+		KEY_UP:"ArrowUp",
+		KEY_DOWN:"ArrowDown",
+		KEY_LEFT:"ArrowLeft",
+		KEY_RIGHT:"ArrowRight",
 	}
 
 	var game = {
@@ -42,8 +47,9 @@ window.onload = function() {
   });
 
   socket.on(KQ.GAME_RESET, data => {
+  	console.log("RESET")
   	document.getElementById('menu').classList.remove("hide");
-  })
+  });
 
   socket.on(KQ.GAME_START, data => {
   	var list = document.getElementsByTagName("li");
@@ -108,19 +114,61 @@ window.onload = function() {
 
   var keys = [];
 
-  window.addEventListener("keydown", function(event) {
-  	if(keys.indexOf(event.key) < 0) {
-	  	keys.push(event.key);
+  var keyDown = key => {
+  	if(keys.indexOf(key) < 0) {
+	  	keys.push(key);
 	  	socket.emit(KQ.KEY_UPDATE, keys);
 	  }
-  });
-  window.addEventListener("keyup", function(event) {
-  	var xo = keys.indexOf(event.key);
+  }
+  var keyUp = key => {
+  	var xo = keys.indexOf(key);
   	if(xo > -1) {
   		keys.splice(xo, 1);
   		socket.emit(KQ.KEY_UPDATE, keys);
   	}
+  }
+  window.addEventListener("keydown", function(event) {
+  	keyDown(event.key);
   });
+  window.addEventListener("keyup", function(event) {
+  	keyUp(event.key);
+  });
+
+  window.addEventListener("touchstart", function(event) {
+  	keyDown(KQ.KEY_UP);
+  });
+  window.addEventListener("touchend", function(event) {
+  	keyUp(KQ.KEY_UP);
+  });
+
+  window.addEventListener("deviceorientation", function(event) {
+  	if(!event.beta) return;
+
+  	if(event.beta < 5) {
+  		keyUp(KQ.KEY_RIGHT);
+  		keyDown(KQ.KEY_LEFT);
+  	}
+  	if(event.beta > 5) {
+  		keyUp(KQ.KEY_LEFT);
+  		keyDown(KQ.KEY_RIGHT);
+  	}
+  });
+
+  // mobile disable scrolling
+  document.ontouchmove = function(event){
+    event.preventDefault();
+	}
+	// "force" landscape
+	document.addEventListener("orientationchange", function(event) {
+    switch(window.orientation) 
+    {  
+        case -90: case 90:
+            /* Device is in landscape mode */
+            break; 
+        default:
+            /* Device is in portrait mode */
+    }
+	});
 
 	window.characterSelected = (ele, id) => {
 		game.characterSelected = id;
