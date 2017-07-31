@@ -32,8 +32,12 @@
 				</div>
 				<button id="player-ready" onclick="playerReady()" disabled>Ready</button>
 			</div>
+			<!-- game is about to start -->
 			<div id="countdown" class="hide">
 				#
+			</div>
+			<div id="game-over" class="hide">
+				GAME OVER
 			</div>
 		</div>
 		<div id="level" class="level-test">
@@ -68,11 +72,11 @@
 
 
 			<!-- shrines blue -->
-			<div id="shrine-speed-blue" class="shrine shrine-speed" style="top:98px;left:158px"></div>
-			<div id="shrine-warrior-blue" class="shrine shrine-warrior" style="top:540px;left:260px"></div>
+			<div id="shrine-speed-blue" class="shrine shrine-speed" style="top:0px;left:158px"></div>
+			<div id="shrine-warrior-blue" class="shrine shrine-warrior" style="top:540px;left:110px"></div>
 			<!-- shrines gold -->
-			<div id="shrine-speed-gold" class="shrine shrine-speed" style="top:98px;left:569px"></div>
-			<div id="shrine-warrior-gold" class="shrine shrine-warrior" style="top:540px;left:455px"></div>
+			<div id="shrine-speed-gold" class="shrine shrine-speed" style="top:0px;left:569px"></div>
+			<div id="shrine-warrior-gold" class="shrine shrine-warrior" style="top:540px;left:605px"></div>
 
 			
 			<!-- goals blue -->
@@ -171,62 +175,75 @@
 			<div id="berry-gold-35" class="berry" style="left:430px;top:527px;"></div>
 
 
+			<!-- way path blue -->
+			<!-- <div id="teamBlue-pathA0" class="path-point" style="left:265px; top:92px;"></div>
+			<div id="teamBlue-pathA1" class="path-point" style="left:191px; top:141px;"></div>
+			<div id="teamBlue-pathA2" class="path-point" style="left:241px; top:191px;"></div>
+			<div id="teamBlue-pathA3" class="path-point" style="left:298px; top:250px;"></div>
+			<div id="teamBlue-pathA4" class="path-point" style="left:224px; top:299px;"></div>
+			<div id="teamBlue-pathA5" class="path-point" style="left:151px; top:347px;"></div>
+			<div id="teamBlue-pathA6" class="path-point" style="left:91px; top:407px;"></div>
+			<div id="teamBlue-pathA7" class="path-point" style="left:159px; top:467px;"></div>
+			<div id="teamBlue-pathA8" class="path-point" style="left:245px; top:517px;"></div>
+			<div id="teamBlue-pathA9" class="path-point" style="left:158px; top:577px;"></div> -->
+
+
 			<!-- walls -->
-			<div class="ground" style="left:0px;top:0px;width:10px;height:222px"></div>
-			<div class="ground" style="left:391px;top:0px;width:20px;height:152px"></div>
-			<div class="ground" style="left:790px;top:0px;width:10px;height:222px"></div>
+			<div id="wall-0" class="ground" style="left:0px;top:0px;width:10px;height:222px"></div>
+			<div id="wall-0-1" class="ground" style="left:391px;top:0px;width:20px;height:152px"></div>
+			<div id="wall-0-2" class="ground" style="left:790px;top:0px;width:10px;height:222px"></div>
 			<!-- row 0 -->
-			<div class="ground" style="left:0px;top:0px;width:800px;height:10px"></div>
+			<div id="ground-0-0" class="ground" style="left:0px;top:0px;width:800px;height:10px"></div>
 			<!-- row 1 -->
-			<div class="ground" style="left:170px;top:50px;width:51px;height:10px"></div>
-			<div class="ground" style="left:581px;top:50px;width:51px;height:10px"></div>
+			<div id="ground-1-0" class="ground" style="left:170px;top:50px;width:51px;height:10px"></div>
+			<div id="ground-1-1" class="ground" style="left:581px;top:50px;width:51px;height:10px"></div>
 			<!-- row 2 -->
-			<div class="ground" style="left:50px;top:101px;width:100px;height:10px"></div>
-			<div class="ground" style="left:242px;top:101px;width:320px;height:10px"></div>
-			<div class="ground" style="left:652px;top:101px;width:100px;height:10px"></div>
+			<div id="ground-2-0" class="ground" style="left:50px;top:101px;width:100px;height:10px"></div>
+			<div id="ground-2-1" class="ground" style="left:242px;top:101px;width:320px;height:10px"></div>
+			<div id="ground-2-2" class="ground" style="left:652px;top:101px;width:100px;height:10px"></div>
 			<!-- row 3 -->
-			<div class="ground" style="left:10px;top:151px;width:10px;height:10px"></div>
-			<div class="ground" style="left:170px;top:151px;width:51px;height:10px"></div>
-			<div class="ground" style="left:581px;top:151px;width:51px;height:10px"></div>
-			<div class="ground" style="left:780px;top:151px;width:10px;height:10px"></div>
+			<div id="ground-3-0" class="ground" style="left:10px;top:151px;width:10px;height:10px"></div>
+			<div id="ground-3-1" class="ground" style="left:170px;top:151px;width:51px;height:10px"></div>
+			<div id="ground-3-2" class="ground" style="left:581px;top:151px;width:51px;height:10px"></div>
+			<div id="ground-3-3" class="ground" style="left:780px;top:151px;width:10px;height:10px"></div>
 			<!-- row 4 -->
-			<div class="ground" style="left:10px;top:212px;width:40px;height:10px"></div>
-			<div class="ground" style="left:220px;top:201px;width:51px;height:10px"></div>
-			<div class="ground" style="left:531px;top:201px;width:51px;height:10px"></div>
-			<div class="ground" style="left:752px;top:212px;width:40px;height:10px"></div>
+			<div id="ground-4-0" class="ground" style="left:10px;top:212px;width:40px;height:10px"></div>
+			<div id="ground-4-1" class="ground" style="left:220px;top:201px;width:51px;height:10px"></div>
+			<div id="ground-4-2" class="ground" style="left:531px;top:201px;width:51px;height:10px"></div>
+			<div id="ground-4-3" class="ground" style="left:752px;top:212px;width:40px;height:10px"></div>
 			<!-- row 5 -->
-			<div class="ground" style="left:110px;top:252px;width:60px;height:10px"></div>
-			<div class="ground" style="left:271px;top:262px;width:60px;height:10px"></div>
-			<div class="ground" style="left:471px;top:262px;width:60px;height:10px"></div>
-			<div class="ground" style="left:632px;top:252px;width:60px;height:10px"></div>
+			<div id="ground-5-0" class="ground" style="left:110px;top:252px;width:60px;height:10px"></div>
+			<div id="ground-5-1" class="ground" style="left:271px;top:262px;width:60px;height:10px"></div>
+			<div id="ground-5-2" class="ground" style="left:471px;top:262px;width:60px;height:10px"></div>
+			<div id="ground-5-3" class="ground" style="left:632px;top:252px;width:60px;height:10px"></div>
 			<!-- row 6 -->
-			<div class="ground" style="left:0px;top:301px;width:70px;height:10px"></div>
-			<div class="ground" style="left:200px;top:312px;width:51px;height:10px"></div>
-			<div class="ground" style="left:401px;top:292px;width:30px;height:10px"></div>
-			<div class="ground" style="left:551px;top:312px;width:51px;height:10px"></div>
-			<div class="ground" style="left:732px;top:301px;width:70px;height:10px"></div>
+			<div id="ground-6-0" class="ground" style="left:0px;top:301px;width:70px;height:10px"></div>
+			<div id="ground-6-1" class="ground" style="left:200px;top:312px;width:51px;height:10px"></div>
+			<div id="ground-6-2" class="ground" style="left:401px;top:292px;width:30px;height:10px"></div>
+			<div id="ground-6-3" class="ground" style="left:551px;top:312px;width:51px;height:10px"></div>
+			<div id="ground-6-4" class="ground" style="left:732px;top:301px;width:70px;height:10px"></div>
 			<!-- row 7 -->
-			<div class="ground" style="left:130px;top:362px;width:51px;height:10px"></div>
-			<div class="ground" style="left:371px;top:352px;width:30px;height:10px"></div>
-			<div class="ground" style="left:621px;top:362px;width:51px;height:10px"></div>
+			<div id="ground-7-0" class="ground" style="left:130px;top:362px;width:51px;height:10px"></div>
+			<div id="ground-7-1" class="ground" style="left:371px;top:352px;width:30px;height:10px"></div>
+			<div id="ground-7-2" class="ground" style="left:621px;top:362px;width:51px;height:10px"></div>
 			<!-- row 8 -->
-			<div class="ground" style="left:70px;top:423px;width:51px;height:10px"></div>
-			<div class="ground" style="left:230px;top:423px;width:21px;height:10px"></div>
-			<div class="ground" style="left:401px;top:412px;width:30px;height:10px"></div>
-			<div class="ground" style="left:551px;top:423px;width:21px;height:10px"></div>
-			<div class="ground" style="left:681px;top:423px;width:51px;height:10px"></div>
+			<div id="ground-8-0" class="ground" style="left:70px;top:423px;width:51px;height:10px"></div>
+			<div id="ground-8-1" class="ground" style="left:230px;top:423px;width:21px;height:10px"></div>
+			<div id="ground-8-2" class="ground" style="left:401px;top:412px;width:30px;height:10px"></div>
+			<div id="ground-8-3" class="ground" style="left:551px;top:423px;width:21px;height:10px"></div>
+			<div id="ground-8-4" class="ground" style="left:681px;top:423px;width:51px;height:10px"></div>
 			<!-- row 9 -->
-			<div class="ground" style="left:0px;top:473px;width:20px;height:10px"></div>
-			<div class="ground" style="left:130px;top:483px;width:61px;height:10px"></div>
-			<div class="ground" style="left:371px;top:473px;width:30px;height:10px"></div>
-			<div class="ground" style="left:611px;top:483px;width:61px;height:10px"></div>
-			<div class="ground" style="left:780px;top:473px;width:20px;height:10px"></div>
+			<div id="ground-9-0" class="ground" style="left:0px;top:473px;width:20px;height:10px"></div>
+			<div id="ground-9-1" class="ground" style="left:130px;top:483px;width:61px;height:10px"></div>
+			<div id="ground-9-2" class="ground" style="left:371px;top:473px;width:30px;height:10px"></div>
+			<div id="ground-9-3" class="ground" style="left:611px;top:483px;width:61px;height:10px"></div>
+			<div id="ground-9-4" class="ground" style="left:780px;top:473px;width:20px;height:10px"></div>
 			<!-- row 10 -->
-			<div class="ground" style="left:0px;top:532px;width:50px;height:10px"></div>
-			<div class="ground" style="left:220px;top:532px;width:330px;height:10px"></div>
-			<div class="ground" style="left:752px;top:532px;width:50px;height:10px"></div>
+			<div id="ground-1-0" class="ground" style="left:0px;top:532px;width:50px;height:10px"></div>
+			<div id="ground-1-1" class="ground" style="left:220px;top:532px;width:330px;height:10px"></div>
+			<div id="ground-1-2" class="ground" style="left:752px;top:532px;width:50px;height:10px"></div>
 			<!-- row 11 -->
-			<div class="ground" style="left:0px;top:590px;width:800px;height:10px"></div>
+			<div id="ground-11-0" class="ground" style="left:0px;top:590px;width:800px;height:10px"></div>
 		</div>
 	</div>
 </body>
