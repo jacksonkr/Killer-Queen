@@ -1,3 +1,13 @@
+@keyframes blink {
+	0% {
+		opacity: 0;
+	}
+
+	50% {
+		opacity: 1;
+	}
+}
+
 body {
 	margin: 0;
 	width:100%;
@@ -17,16 +27,6 @@ body {
 
 .hide {
 	display:none;
-}
-
-@keyframes blink {
-	0% {
-		opacity: 0;
-	}
-
-	50% {
-		opacity: 1;
-	}
 }
 
 .invulnerable {
@@ -210,6 +210,9 @@ body {
 	background: url("assets/shrine-warrior.png");
 }
 #player-ready {
+	position: absolute;
+	top: 0;
+	left: 40%;
 	outline:none;
 	cursor: pointer;
 	transition: all 0.25s;
@@ -243,4 +246,20 @@ body {
     text-align: center;
     background: #000;
     cursor: default;
+}
+
+/**
+ * leave a trail behind elements with the "speed" class
+ * https://stackoverflow.com/questions/32238800/css-how-can-i-make-a-particle-leave-a-trail-that-fades-away
+ */
+#speed-upgrade {
+	animation: 0.1s blink step-end infinite; /* temporary */
+}
+
+.path-point {
+	position: absolute;
+	width:10px;
+	height:10px;
+	border-radius: 5px;
+	background: orange;
 }
