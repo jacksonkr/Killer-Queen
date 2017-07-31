@@ -46,6 +46,10 @@ io.sockets.on("connection", socket => {
 
 	KQ.Game.instance.dispatchEvent(new KQ.Event(KQ.CONST.MENU_UPDATE));
 
+	KQ.Game.instance.addEventListener(KQ.CONST.GAME_RESET, event => {
+		user.toonId = null;
+	})
+
 	socket.on(KQ.CONST.USER_CHARACTER_SELECT, data => {
 		// make sure character isn't already taken
 		var taken = false;
@@ -72,18 +76,18 @@ io.sockets.on("connection", socket => {
 			KQ.Game.instance.dispatchEvent(e);
 
 			if(KQ.Game.instance.gameInProgress) {
-				// quick join
+				// quick join, send only to this user -jkr
 				user.socket.emit(KQ.CONST.GAME_START);
 				return;
 			}
 
-			// if we're here then no game is in progress
+			// if we're here then no game is in progress -jkr
 			var gameReady = true;
 			if(KQ.Game.instance.users.forEach(u => {
 				if(!u.toonId || !u.ready) gameReady = false;
 			}));
 
-			// once all users are ready, start the countdown
+			// once all users are ready, start the countdown -jkr
 			if(gameReady) {
 				KQ.Game.instance.countDownStartTime = Date.now();
 				KQ.Game.instance.dispatchEvent(new KQ.Event(KQ.CONST.GAME_COUNTDOWN));
