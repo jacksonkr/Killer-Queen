@@ -1,32 +1,56 @@
 "use strict";
 
+String.prototype.s2n = function() {
+  try {
+    // sanity check
+    if(typeof(this) == "number") return this;
+
+    let m = this.match(/\d+/);
+    return Number(m[0]);
+  } catch(e) {
+    console.log(e);
+    return null;
+  }
+}
+String.prototype.n2s = Number.prototype.n2s = function() {
+  try {
+    return this.toString().replace("px", "") + "px";
+  } catch(e) {
+    console.log(e);
+  }
+}
+
 window.onload = function() {
-	const KQ = {
-		ALERT:"alert",
-		KEY_UPDATE:"key_update",
-		VIRTUAL_UPDATE:"virtual_update",
-		USER_CHARACTER_SELECT:"USER_CHARACTER_SELECT",
-		USER_READY:"user_ready",
-		USER_DISCONNECT:"user_disconnect",
-		TEAM_BLUE:"teamBlue",
-		TEAM_GOLD:"teamGold",
-		TOON_QUEEN:"queen",
-		TOON_WORKER:"worker",
-		GAME_OVER:"game_over",
-		GAME_COUNTDOWN:"game_countdown",
-		GAME_START:"game_start",
-		GAME_WIN:"game_win",
-		WIN_ECONOMIC:"win_economic",
-		WIN_MILITARY:"win_military",
-		WIN_SNAIL:"win_snail",
-		DIRECTION_RIGHT:"direction-right",
-		DIRECTION_LEFT:"direction-left",
-		DIRECTION_DOWN:"direction-down",
-		MENU_UPDATE:"menu_update",
-		KEY_UP:"ArrowUp",
-		KEY_DOWN:"ArrowDown",
-		KEY_LEFT:"ArrowLeft",
-		KEY_RIGHT:"ArrowRight",
+	const CONST = {
+    ALERT:"alert",
+    KEY_UPDATE:"key_update",
+    VIRTUAL_UPDATE:"virtual_update",
+    USER_CHARACTER_SELECT:"USER_CHARACTER_SELECT",
+    USER_READY:"user_ready",
+    USER_DISCONNECT:"user_disconnect",
+    TEAM_BLUE:"teamBlue",
+    TEAM_GOLD:"teamGold",
+    TOON_QUEEN:"queen",
+    TOON_WORKER:"worker",
+    GAME_OVER:"game_over",
+    GAME_COUNTDOWN:"game_countdown",
+    GAME_START:"game_start",
+    GAME_WIN:"game_win",
+    WIN_ECONOMIC:"win_economic",
+    WIN_MILITARY:"win_military",
+    WIN_SNAIL:"win_snail",
+    DIRECTION_RIGHT:"direction-right",
+    DIRECTION_LEFT:"direction-left",
+    DIRECTION_DOWN:"direction-down",
+    MENU_UPDATE:"menu_update",
+    KEY_UP:"ArrowUp",
+    KEY_DOWN:"ArrowDown",
+    KEY_LEFT:"ArrowLeft",
+    KEY_RIGHT:"ArrowRight",
+    GAME_RESET: "game_reset",
+
+    // front end only
+    GAME_DISPLAY_WIN_DELAY: 1.5 * 1000,
 	}
 
 	var game = {
@@ -35,23 +59,51 @@ window.onload = function() {
 
   var socket = io();
 
-  socket.on(KQ.GAME_WIN, data => {
-  	alert("GAME OVER: " + data.type + " " + data.team)
+  socket.on(CONST.GAME_WIN, data => {
+  	// alert("GAME OVER: " + data.type + " " + data.team)
+
+    let d = CONST.GAME_DISPLAY_WIN_DELAY;
+
+    // delay before showing the game over screen
+    window.setTimeout(() => {
+      let div = document.getElementById("game-over");
+      div.classList.remove("hide");
+
+      div = document.getElementById("win-text").innerHTML = data.type;
+
+      div = document.getElementById("win-mask");
+
+      // position circle mask effect
+
+      // getting :before info isn't working ??? -jkr
+      let pe = window.getComputedStyle(div, ":before");
+      // let top = data.focus.top - pe.height.s2n() / 2;
+      // let left = data.focus.left - pe.width.s2n() / 2;
+
+      let top = data.focus.top - 50;
+      let left = data.focus.left - 50;
+
+      div.style.top = top;
+      div.style.left = left;
+    }, d);
   });
 
-  socket.on(KQ.GAME_COUNTDOWN, data => {
-  	var ele = document.getElementById('countdown');
-  	ele.classList.remove('hide');
+  socket.on(CONST.GAME_COUNTDOWN, data => {
+  	var ele = document.getElementById("countdown");
+  	ele.classList.remove("hide");
 
   	ele.innerHTML = data.time;
   });
 
-  socket.on(KQ.GAME_RESET, data => {
-  	console.log("RESET")
+  socket.on(CONST.GAME_RESET, data => {
+  	console.log("!! GAME RESET")
+
   	document.getElementById('menu').classList.remove("hide");
+    document.getElementById('game-over').classList.add("hide");
   });
 
-  socket.on(KQ.GAME_START, data => {
+  socket.on(CONST.GAME_START, data => {
+  	document.getElementById('game-over').classList.add("hide");
   	var list = document.getElementsByTagName("li");
   	for(var i in list) {
   		var li = list[+i];
@@ -62,7 +114,7 @@ window.onload = function() {
   	document.getElementById('menu').classList.add('hide');
   });
 
-  socket.on(KQ.VIRTUAL_UPDATE, data => {
+  socket.on(CONST.VIRTUAL_UPDATE, data => {
   	// try {
   		data.forEach(o => {
 		  	var ele = document.getElementById(o.id);
@@ -78,11 +130,24 @@ window.onload = function() {
 					if(o.warrior == true) ele.classList.add("warrior");
 					else ele.classList.remove("warrior");
 
-					if(o.invulnerable == true) ele.classList.add("invulnerable");
+					if(o.Invulnerable == true) ele.classList.add("invulnerable");
 					else ele.classList.remove("invulnerable");
 
 					if(o.attacking > 0) ele.classList.add("attacking");
 					else ele.classList.remove("attacking");
+
+					if(o.speedUpgrade > 0) ele.classList.add("speed-upgrade");
+					else ele.classList.remove("speed-upgrade");
+
+					if(o.id.indexOf("shrine") > -1) {
+						if(o.affiliation == CONST.TEAM_BLUE) ele.classList.add("blue");
+						else ele.classList.remove("blue");
+
+						if(o.affiliation == CONST.TEAM_GOLD) ele.classList.add("gold");
+						else ele.classList.remove("gold");
+
+						console.log(o.affiliation);
+					}
 				}
   		});
 		// } catch(e) {
@@ -91,7 +156,7 @@ window.onload = function() {
 		// }
   });
 
-  socket.on(KQ.MENU_UPDATE, data => {
+  socket.on(CONST.MENU_UPDATE, data => {
   	var list = document.getElementById("menu").getElementsByTagName("li");
   	for(var i in list) {
   		var li = list[+i];
@@ -108,7 +173,7 @@ window.onload = function() {
   	// }
   });
 
-  socket.on(KQ.ALERT, (data) => {
+  socket.on(CONST.ALERT, (data) => {
   	window.alert(data.text);
   })
 
@@ -117,14 +182,14 @@ window.onload = function() {
   var keyDown = key => {
   	if(keys.indexOf(key) < 0) {
 	  	keys.push(key);
-	  	socket.emit(KQ.KEY_UPDATE, keys);
+	  	socket.emit(CONST.KEY_UPDATE, keys);
 	  }
   }
   var keyUp = key => {
   	var xo = keys.indexOf(key);
   	if(xo > -1) {
   		keys.splice(xo, 1);
-  		socket.emit(KQ.KEY_UPDATE, keys);
+  		socket.emit(CONST.KEY_UPDATE, keys);
   	}
   }
   window.addEventListener("keydown", function(event) {
@@ -135,22 +200,22 @@ window.onload = function() {
   });
 
   window.addEventListener("touchstart", function(event) {
-  	keyDown(KQ.KEY_UP);
+  	keyDown(CONST.KEY_UP);
   });
   window.addEventListener("touchend", function(event) {
-  	keyUp(KQ.KEY_UP);
+  	keyUp(CONST.KEY_UP);
   });
 
   window.addEventListener("deviceorientation", function(event) {
   	if(!event.beta) return;
 
   	if(event.beta < 5) {
-  		keyUp(KQ.KEY_RIGHT);
-  		keyDown(KQ.KEY_LEFT);
+  		keyUp(CONST.KEY_RIGHT);
+  		keyDown(CONST.KEY_LEFT);
   	}
   	if(event.beta > 5) {
-  		keyUp(KQ.KEY_LEFT);
-  		keyDown(KQ.KEY_RIGHT);
+  		keyUp(CONST.KEY_LEFT);
+  		keyDown(CONST.KEY_RIGHT);
   	}
   });
 
@@ -183,14 +248,14 @@ window.onload = function() {
 		document.getElementById("player-ready").disabled = false;
 		document.getElementById("player-ready").classList.remove("selected");
 
-		socket.emit(KQ.USER_CHARACTER_SELECT, {toonId:id});
+		socket.emit(CONST.USER_CHARACTER_SELECT, {toonId:id});
 	}
 
 	window.playerReady = () => {
 		var ele = document.getElementById("player-ready");
 		ele.classList.add("selected");
 
-		socket.emit(KQ.USER_READY, {
+		socket.emit(CONST.USER_READY, {
 			ready:ele.classList.contains("selected")
 		});
 
