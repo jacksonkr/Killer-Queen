@@ -33,6 +33,7 @@ const CONST = {
 	KEY_DOWN:"ArrowDown",
 	KEY_LEFT:"ArrowLeft",
 	KEY_RIGHT:"ArrowRight",
+	GAME_RESET: "game_reset",
 
 	// server specific
 	ATTACKED:"attacked",
@@ -43,14 +44,14 @@ const CONST = {
 	SNAIL_SPEED: 0.1,
 	SNAIL_SWALLOW_DURATION: 3000,
 	SNAIL_ATTACK: "snail_attack",
-	GAME_START_DELAY: 0, // 3,
-	GAME_RESET: "game_reset",
-	GAME_NO_USERS_RESET_DELAY: 5000, // after no users for 5 seconds reset.
+	GAME_START_DELAY: 0, // 3, // in seconds (todo: change to ms?) -jkr
+	GAME_RESET_DELAY: 8000,
+	GAME_NO_USERS_RESET_DELAY: 10 * 1000, // after last user leaves, reset game after this time -jkr
 	TOON_RESET_DELAY: 3000,
 	JUMP:"jump",
-	ELE_BUMP:"ele_bump", // when two elemens bump into each other
-	TOON_MASS:10, // mass of a toon (do queens/warriors weigh more?)
-	BERRY_MASS:3, // mass of a berry
+	ELE_BUMP:"ele_bump", // when two elemens bump into each other -jkr
+	TOON_MASS:10, // mass of a toon (do queens/warriors weigh more?) -jkr
+	BERRY_MASS:3, // mass of a berry -jkr
 	BERRY_PICKUP: "berry_pickup",
 	SHRINE_POWER_UP:"shrine_power_up",
 	SHRINE_POWER_UP_DELAY: 2000,
@@ -58,12 +59,12 @@ const CONST = {
 		top: 16,
 		left: 7
 	},
-	ELEMENT_OFFSCREEN_OFFSET: {
+	ELEMENT_OFFSCREEN_OFFSET: { // element off stage graveyard -jkr
 		top: -100,
 		left: -100
 	},
 	LOOP: "loop",
-	L1K_DEBUG_LOOP: "l1k_debug_loop", // for 1000 loops
+	L1K_DEBUG_LOOP: "l1k_debug_loop", // for 1000 loops -jkr
 	MOVE_TASK_COMPLETE:"move_task_complete",
 	GRAVITY_MAX: 4,
 	GRAVITY_RATE: 0.2,
@@ -232,7 +233,11 @@ class Element extends Collideable {
 	constructor() {
 		super();
 
-		Game.instance.addEventListener(CONST.GAME_START, () => {
+		this.addRestartListener();
+	}
+
+	addRestartListener() {
+		Game.instance.addEventListener(CONST.GAME_START, event => {
 			this.mReset();
 		});
 	}
@@ -464,7 +469,13 @@ class Egg extends Updateable {
 	constructor(id) {
 		super(id);
 
-		// var e = Event.hasEventListener(CONST.GAME_START, this, 1000);
+		this.hatched = false;
+	}
+
+	addRestartListener() {
+		Game.instance.addEventListener(CONST.GAME_START, event => {
+			this.mReset();
+		}, 1000);
 	}
 
 	static eggsForTeam(team) {
@@ -481,7 +492,7 @@ class Egg extends Updateable {
 	hatch(queen) {
 		this.hatched = true;
 
-		console.log("HATCH", this.id)
+		console.log("!! HATCH", this.id)
 
 		this.top = CONST.ELEMENT_OFFSCREEN_OFFSET.top;
 		this.left = CONST.ELEMENT_OFFSCREEN_OFFSET.left;
@@ -615,10 +626,6 @@ class Snail extends Updateable {
 				this.toon = null;
 			}
 		});
-
-		Game.instance.addEventListener(CONST.GAME_RESET, event => {
-			this.mReset();
-		});
 	}
 
 	collission(o) {
@@ -648,7 +655,7 @@ class Snail extends Updateable {
 		}
 
 		if(o instanceof SnailCage) {
-			Game.instance.win(CONST.WIN_SNAIL, this.toon.team);
+			Game.instance.win(CONST.WIN_SNAIL, this.toon.team, Game.instance.virtual.level.snail.toon);
 		}
 	}
 
@@ -790,7 +797,9 @@ class Goal extends Virtual {
 			// this.berry = true;
 		}
 
-		Goal.checkWin(this.team);
+		if(Goal.checkWin(this.team)) {
+			Game.instance.win(CONST.WIN_ECONOMIC, this.team, o);
+		}
 	}
 
 	static get goals() {
@@ -804,10 +813,8 @@ class Goal extends Virtual {
 			if(goal.team != team) return;
 			if(!goal.berry) win = false;
 		});
-		
-		if(win) {
-			Game.instance.win(CONST.WIN_ECONOMIC, team);
-		}
+
+		return win;
 	}
 }
 
@@ -1188,7 +1195,7 @@ class Toon extends Updateable {
 	}
 
 	/**
-	 * check for collisions with the ground / walls
+	 * check for collissions with the ground / walls
 	 * remedy collission by moving character
 	 */
 	groundCheck() {
@@ -1444,6 +1451,8 @@ class Worker extends Toon {
 	shrineCheck() {
 		if(this.berry) { // only check if you have a berry
 			Game.instance.virtual.level.shrines.forEach(shrine => {
+				if(shrine instanceof ShrineSpeed && this.speedUpgrade) return;
+
 				if(shrine.hitTestBounds(this.boundingBox)) {
 					shrine.collission(this);
 					this.collission(shrine);
@@ -1553,7 +1562,7 @@ class Queen extends Toon {
 		if(Egg.eggsForTeam(this.team).length) {
 			super.attacked();
 		} else {
-			Game.instance.win(CONST.WIN_MILITARY, attacker.team);
+			Game.instance.win(CONST.WIN_MILITARY, attacker.team, attacker);
 		}
 	}
 
@@ -1564,20 +1573,16 @@ class Queen extends Toon {
 	mReset() {
 		super.mReset();
 
-		try {
-			// respawn at egg
-			var eggs = Egg.eggsForTeam(this.team);
-			var egg = eggs[0];
-			console.log("RESPAWN AT EGG", egg.id, egg.hatched);
+		// respawn at egg
+		var eggs = Egg.eggsForTeam(this.team);
+		var egg = eggs[0];
+		// console.log("RESPAWN AT EGG", egg.id, egg.hatched);
 
-			if(egg) {
-				this.top = egg.top;
-				this.left = egg.left;
+		if(egg) {
+			this.top = egg.top;
+			this.left = egg.left;
 
-				egg.hatch(this);
-			}
-		} catch(e) {
-			console.log(e);
+			egg.hatch(this);
 		}
 
 	}
@@ -1665,6 +1670,7 @@ class Game extends EventDispatcher {
 		};
 
 		this.addEventListener(CONST.GAME_START, event => {
+			console.log("!! GAME START");
 			Game.instance.gameInProgress = true;
 			if(Game.instance.loopIntervalId) clearInterval(Game.instance.loopIntervalId);
 			Game.instance.loopIntervalId = setInterval(() => {
@@ -1675,8 +1681,18 @@ class Game extends EventDispatcher {
 			io.sockets.emit(CONST.GAME_START, null);
 		});
 		this.addEventListener(CONST.GAME_OVER, event => {
-			Game.instance.dispatchEvent(new Event(CONST.GAME_RESET));
-			io.sockets.emit(CONST.GAME_OVER);
+			let d = {
+				type:event.extra.type, 
+				team:event.extra.team, 
+				focus:event.extra.focus
+			};
+			io.sockets.emit(CONST.GAME_WIN, d); // CRASH ??
+
+			// wait to reset game
+
+			setTimeout(() => {
+				Game.instance.dispatchEvent(new Event(CONST.GAME_RESET));
+			}, CONST.GAME_RESET_DELAY);
 		});
 		this.addEventListener(CONST.GAME_COUNTDOWN, event => {
 			Game.instance.countdownTimer = setTimeout(() => {
@@ -1685,6 +1701,7 @@ class Game extends EventDispatcher {
 
 				io.sockets.emit(CONST.GAME_COUNTDOWN, {time:CONST.GAME_START_DELAY - diff});
 
+				console.log("!!", diff, CONST.GAME_START_DELAY)
 				if(diff >= CONST.GAME_START_DELAY) {
 					Game.instance.dispatchEvent(new Event(CONST.GAME_START));
 				} else {
@@ -1693,8 +1710,10 @@ class Game extends EventDispatcher {
 			}, 1000);
 		});
 		this.addEventListener(CONST.GAME_RESET, event => {
-			console.log("GAME RESET !!");
-			io.sockets.emit(CONST.GAME_RESET);
+			console.log("!! GAME RESET");
+
+			io.sockets.emit(CONST.GAME_RESET, {});
+
 			Game.instance.gameInProgress = false;
 			clearInterval(Game.instance.loopIntervalId);
 			Game.instance.loopIntervalId = null;
@@ -1726,9 +1745,22 @@ class Game extends EventDispatcher {
 		return this._loopCount;
 	}
 
-	win(type,team) {
-		io.sockets.emit(CONST.GAME_WIN, {type:type, team:team});
-		Game.instance.dispatchEvent(new Event(CONST.GAME_OVER));
+	/**
+	 * @type string the win type (economic, militar, snail)
+	 * @team string the winning team
+	 * @focus Element the item to zoom on during game over screen (needs top & left)
+	 */
+	win(type,team,focus) {
+		console.log("WIN", type, team, focus.id);
+
+		let f = {
+			top: focus.top,
+			left: focus.left
+		}
+
+		let e = new Event(CONST.GAME_OVER);
+		e.extra = {type:type,team:team,focus:f};
+		Game.instance.dispatchEvent(e);
 		clearInterval(this.loopIntervalId);
 	}
 
