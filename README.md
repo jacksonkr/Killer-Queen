@@ -2,20 +2,20 @@ This is just for fun. Repurposing the 10 player Killer Queen arcade with HTML, C
 
 **Feel free to pitch in!**
 
-<h1>Simple Setup</h1>
+<h1>Simple Install</h1>
 
-<code>
+```
 $ git clone https://github.com/jacksonkr/Killer-Queen
 $ cd Killer-Queen
 $ git checkout dev; # OPTIONAL! Only use this if you know what it means
 $ npm install
 $ node app.js
-</code>
+```
 
-go to <a href="http://localhost:3000">http://localhost:3000</a>
+In a browser, navigate to <a href="http://localhost:3000">http://localhost:3000</a> to start a game instance.
 
 
-<h1>Package</h1>
+<h1>Package Contents</h1>
 
 node<br />
 socketio - this game is server based and multiplayer<br />
